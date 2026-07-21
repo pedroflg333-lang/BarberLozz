@@ -1,0 +1,18 @@
+{
+  "short_name": "BarberLozz",
+  "name": "BarberLozz SaaS - Gestión de Citas Premium",
+  "description": "Plataforma profesional de gestión de citas para peluquerías y barberías.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/dashboard",
+  "background_color": "#111111",
+  "theme_color": "#D4AF37",
+  "display": "standalone",
+  "orientation": "portrait"
+}
