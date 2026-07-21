@@ -1,11 +1,16 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import { config } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import { backendFunctions } from './tools.js';
 import { OllamaService } from './ollamaService.js';
 import { LaboratoryMessageProvider } from './messageProvider.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+config({ path: resolve(__dirname, '..', '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -188,7 +193,7 @@ const detectBusinessSettingsIntent = (userMessage: string): boolean => {
 // Endpoint: Chat completion representing incoming WhatsApp Message Provider Payload
 app.post('/api/chat', async (req, res) => {
   try {
-    const { phone, name, message, timestamp, source } = req.body;
+    const { phone, name, message, timestamp, source, business_id } = req.body;
     
     if (!phone || !message) {
       return res.status(400).json({ error: 'Falta parámetro obligatorio: phone o message.' });
@@ -227,7 +232,8 @@ app.post('/api/chat', async (req, res) => {
       const resolvedDate = resolveConversationDate(threadHistory);
       console.log(`[WhatsApp Tool] Crear cita para +${providerResult.phone}: ${resolvedDate} a las ${bookingIntent.hora}`);
       
-      const toolResult = backendFunctions.createAppointment({
+      const toolResult = await backendFunctions.createAppointment({
+        business_id: business_id || 'bs_barberlozz',
         nombre: providerResult.name,
         telefono: providerResult.phone,
         fecha: resolvedDate,
@@ -238,6 +244,7 @@ app.post('/api/chat', async (req, res) => {
       functionCallsExecuted.push({
         functionName: 'createAppointment',
         args: {
+          business_id: business_id || 'bs_barberlozz',
           nombre: providerResult.name,
           telefono: providerResult.phone,
           fecha: resolvedDate,
@@ -248,7 +255,12 @@ app.post('/api/chat', async (req, res) => {
       });
 
       if (toolResult.success) {
-        customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: El sistema ha creado con ÉXITO la cita en la base de datos (success=true) para ${providerResult.name} (${providerResult.phone}) el día ${resolvedDate} a las ${bookingIntent.hora} para el servicio: ${bookingIntent.servicio}. Redacta una respuesta muy alegre y atenta diciendo textualmente que la cita ha quedado confirmada.`;
+        const appt = toolResult.appointment;
+        const aptId = appt?.id ? `#AP-${appt.id.toString().substring(0, 6).toUpperCase()}` : '#AP-000000';
+        const serviceName = appt?.service?.nombre || bookingIntent.servicio;
+        const employeeName = appt?.employee?.full_name || 'BarberLozz';
+
+        customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: El sistema ha creado con ÉXITO la cita en la base de datos (success=true) para ${providerResult.name} (${providerResult.phone}) el día ${resolvedDate} a las ${bookingIntent.hora} para el servicio: ${bookingIntent.servicio}. Redacta una respuesta muy alegre y atenta confirmando la cita. Incluye los siguientes datos reales:\n- Fecha: ${resolvedDate}\n- Hora: ${bookingIntent.hora}\n- Servicio: ${serviceName}\n- Empleado: ${employeeName}\n- Referencia: ${aptId}`;
       } else {
         customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: El sistema ha RECHAZADO la cita en la base de datos (success=false) porque la hora ${bookingIntent.hora} el día ${resolvedDate} ya está ocupada por otra reserva. Responde de manera sumamente educada diciendo exactamente: "Lo siento, esa hora acaba de ocuparse. ¿Quieres otra opción?" y ofrécele consultar otros huecos disponibles.`;
       }
@@ -319,9 +331,14 @@ app.post('/api/chat', async (req, res) => {
 
     const finalThreadMessages = backendFunctions.getConversationHistoryForOllama(providerResult.phone);
 
+    const createdAppointment = functionCallsExecuted
+      .find(t => t.functionName === 'createAppointment' && t.result?.success)
+      ?.result?.appointment || null;
+
     res.json({
       messages: finalThreadMessages,
-      executedTools: functionCallsExecuted
+      executedTools: functionCallsExecuted,
+      createdAppointment
     });
 
   } catch (error: any) {

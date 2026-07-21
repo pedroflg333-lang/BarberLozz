@@ -59,6 +59,15 @@ export const Dashboard: React.FC = () => {
     fetchConversations();
   }, [fetchAppointments, fetchBusiness, fetchCustomers, fetchConversations]);
 
+  // Auto-refresh every 15 seconds to pick up AI-created appointments
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAppointments();
+      fetchCustomers();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [fetchAppointments, fetchCustomers]);
+
   // TODAY FILTERS
   const today = new Date();
   const getTodayDateStr = () => today.toISOString().split('T')[0];
@@ -156,29 +165,30 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Mock origins for beautiful visual badges
-  const getOriginBadge = (idx: number) => {
-    if (idx % 3 === 0) {
-      return (
-        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg flex items-center gap-1">
-          <Bot className="w-3.5 h-3.5" />
-          WhatsApp (IA)
-        </span>
-      );
-    } else if (idx % 3 === 1) {
-      return (
-        <span className="px-2.5 py-1 bg-neutral-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
-          <UserPlus className="w-3.5 h-3.5 text-gold" />
-          Manual
-        </span>
-      );
-    } else {
-      return (
-        <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1">
-          <Bot className="w-3.5 h-3.5" />
-          IA App
-        </span>
-      );
+  // Real origins badges based on appointment.origen field
+  const getOriginBadge = (origin: string) => {
+    switch (origin) {
+      case 'IA':
+      case 'WHATSAPP':
+        return (
+          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg flex items-center gap-1">
+            <Bot className="w-3.5 h-3.5" />
+            IA WhatsApp
+          </span>
+        );
+      case 'WEB':
+        return (
+          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1">
+            WEB
+          </span>
+        );
+      default:
+        return (
+          <span className="px-2.5 py-1 bg-neutral-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
+            <UserPlus className="w-3.5 h-3.5 text-gold" />
+            Manual
+          </span>
+        );
     }
   };
 
@@ -341,7 +351,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     {getStatusBadge(apt.estado)}
-                    {getOriginBadge(idx)}
+                    {getOriginBadge(apt.origen)}
                   </div>
                 </div>
               );

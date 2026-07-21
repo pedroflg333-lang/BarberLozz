@@ -9,5 +9,5 @@
     "resolveJsonModule": true,
     "outDir": "./dist"
   },
-  "include": ["server.ts", "tools.ts"]
+  "include": ["server.ts", "tools.ts", "supabase.ts"]
 }

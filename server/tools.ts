@@ -1,5 +1,7 @@
 // In-memory Database & Tool Execution for BarberLozz Manager (Laboratorio IA Backend)
 
+import { supabase, isSupabaseConfigured } from './supabase.js';
+
 export interface Customer {
   id: string;
   first_name: string;
@@ -440,16 +442,107 @@ export const backendFunctions = {
     return { success: true, configuracion: dbBusinessSettings };
   },
 
-  // 11. createAppointment() with strict double-booking prevention keyed by phone
-  createAppointment: (args: { nombre: string; telefono: string; fecha: string; hora: string; servicio: string }): { success: boolean; appointment?: Appointment; message?: string } => {
+  // 11. createAppointment() with Supabase persistence (real appointments)
+  createAppointment: async (args: { business_id: string; nombre: string; telefono: string; fecha: string; hora: string; servicio: string }): Promise<{ success: boolean; appointment?: any; message?: string }> => {
     try {
+      if (isSupabaseConfigured) {
+        // 1. Find or create customer
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('business_id', args.business_id)
+          .eq('telefono', args.telefono)
+          .maybeSingle();
+
+        let customer = existingCustomer;
+        if (!customer) {
+          const { data: newCustomer, error: createErr } = await supabase
+            .from('customers')
+            .insert({
+              business_id: args.business_id,
+              nombre: args.nombre,
+              telefono: args.telefono,
+              notas: 'Registrado automáticamente al agendar cita por WhatsApp.'
+            })
+            .select()
+            .single();
+
+          if (createErr) throw createErr;
+          customer = newCustomer;
+        }
+
+        // 2. Get first employee for the business (if any)
+        const { data: employees } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('business_id', args.business_id)
+          .limit(1);
+
+        const employeeId = employees?.[0]?.id || null;
+
+        // 3. Find service by name
+        const term = args.servicio.toLowerCase();
+        const { data: services } = await supabase
+          .from('services')
+          .select('*')
+          .eq('business_id', args.business_id)
+          .eq('is_active', true);
+
+        let service = services?.find((s: any) => s.nombre.toLowerCase().includes(term));
+        if (!service) {
+          service = services?.[0];
+        }
+        if (!service) {
+          return { success: false, message: 'No hay servicios activos disponibles.' };
+        }
+
+        // 4. Check double-booking
+        const { data: existingApt } = await supabase
+          .from('appointments')
+          .select('id')
+          .eq('business_id', args.business_id)
+          .eq('fecha', args.fecha)
+          .eq('hora', args.hora)
+          .neq('estado', 'cancelled')
+          .maybeSingle();
+
+        if (existingApt) {
+          return { success: false, message: 'La hora seleccionada ya está ocupada.' };
+        }
+
+        // 5. Create real appointment in Supabase
+        const { data: appointment, error: aptErr } = await supabase
+          .from('appointments')
+          .insert({
+            business_id: args.business_id,
+            customer_id: customer.id,
+            employee_id: employeeId,
+            servicio_id: service.id,
+            fecha: args.fecha,
+            hora: args.hora,
+            estado: 'pending',
+            origen: 'WHATSAPP',
+            notes: 'Creado por Asistente IA WhatsApp.',
+            price_charged: service.precio
+          })
+          .select(`
+            *,
+            customer:customers(*),
+            service:services(*)
+          `)
+          .single();
+
+        if (aptErr) throw aptErr;
+        return { success: true, appointment };
+      }
+
+      // Fallback: in-memory mode (when Supabase is not configured)
       const startIso = `${args.fecha}T${args.hora}:00`;
       const startDate = new Date(startIso);
       if (isNaN(startDate.getTime())) {
         return { success: false, message: 'La fecha u hora de la cita son inválidas.' };
       }
 
-      // 1. Enforce double-booking check
       const alreadyBooked = dbAppointments.some(apt => {
         if (apt.status === 'cancelled') return false;
         return new Date(apt.start_time).getTime() === startDate.getTime();
@@ -459,7 +552,6 @@ export const backendFunctions = {
         return { success: false, message: 'La hora seleccionada ya está ocupada.' };
       }
 
-      // 2. Find or register customer by phone
       let client = dbCustomers.find(c => c.phone === args.telefono);
       if (!client) {
         client = {
@@ -477,14 +569,12 @@ export const backendFunctions = {
         dbCustomers.push(client);
       }
 
-      // 3. Find service match
       const term = args.servicio.toLowerCase();
       let service = dbServices.find(s => s.name.toLowerCase().includes(term));
       if (!service) {
-        service = dbServices[0]; // fallback
+        service = dbServices[0];
       }
 
-      // 4. Record appointment
       const endDate = new Date(startDate.getTime() + service.duration * 60 * 1000);
       const newApt: Appointment = {
         id: `apt_${Math.random().toString(36).substr(2, 9)}`,

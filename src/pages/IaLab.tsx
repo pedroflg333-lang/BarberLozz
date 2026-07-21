@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { aiLabService } from '../services/api';
 import type { ChatMessage, ExecutedTool } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
+import { useAppointmentStore } from '../stores/appointmentStore';
+import { useCustomerStore } from '../stores/customerStore';
 import { 
   Send, 
   Bot, 
@@ -34,6 +37,7 @@ export const IaLab: React.FC = () => {
   // Ollama Connection State
   const [ollamaConnected, setOllamaConnected] = useState<boolean | null>(null);
   const [ollamaModel, setOllamaModel] = useState<string>('qwen3:8b');
+  const businessId = useAuthStore((s) => s.businessId);
 
   // Console execution details (Dynamic Metrics!)
   const [processingTime, setProcessingTime] = useState<string>('0.0s');
@@ -91,7 +95,8 @@ export const IaLab: React.FC = () => {
         phone: simulatedPhone,
         name: simulatedName,
         message: userText,
-        source: 'laboratory'
+        source: 'laboratory',
+        business_id: businessId
       });
 
       // Calculate processing time
@@ -107,6 +112,12 @@ export const IaLab: React.FC = () => {
       // 4. Update the real-time executed tools console
       if (response.executedTools && response.executedTools.length > 0) {
         setExecutedTools(prev => [...response.executedTools, ...prev]);
+      }
+
+      // 5. If a real appointment was created, refresh stores so Dashboard/Calendar update immediately
+      if (response.createdAppointment) {
+        useAppointmentStore.getState().fetchAppointments();
+        useCustomerStore.getState().fetchCustomers();
       }
     } catch (err: any) {
       setError(err.message || 'Ocurrió un error al procesar el mensaje.');

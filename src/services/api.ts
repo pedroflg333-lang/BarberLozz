@@ -16,13 +16,14 @@ export interface ExecutedTool {
 export interface ChatResponse {
   messages: ChatMessage[];
   executedTools: ExecutedTool[];
+  createdAppointment?: any;
 }
 
 export const aiLabService = {
   /**
    * Sends the simulated WhatsApp message to our Node.js AI webhook server
    */
-  sendWhatsAppMessage: async (payload: { phone: string; name: string; message: string; source: 'laboratory' }): Promise<ChatResponse> => {
+  sendWhatsAppMessage: async (payload: { phone: string; name: string; message: string; source: 'laboratory'; business_id?: string | null }): Promise<ChatResponse> => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
@@ -34,7 +35,8 @@ export const aiLabService = {
           name: payload.name,
           message: payload.message,
           timestamp: new Date().toISOString(),
-          source: payload.source
+          source: payload.source,
+          business_id: payload.business_id
         })
       });
 
