@@ -1,6 +1,6 @@
 // In-memory Database & Tool Execution for BarberLozz Manager (Laboratorio IA Backend)
 
-import { supabase, isSupabaseConfigured } from './supabase.js';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from './supabase.js';
 
 export interface Customer {
   id: string;
@@ -255,12 +255,26 @@ export const backendFunctions = {
       }));
   },
 
-  // 1. buscarHuecos(fecha)
-  buscarHuecos: (args: { fecha: string }): { success: boolean; huecos: string[] } => {
+  // 1. buscarHuecos(fecha, business_id)
+  buscarHuecos: async (args: { fecha: string; business_id?: string }): Promise<{ success: boolean; huecos: string[] }> => {
     try {
-      const startStr = dbBusinessSettings.business_hours.start;
-      const endStr = dbBusinessSettings.business_hours.end;
-      const duration = dbBusinessSettings.default_service_duration;
+      let startStr = dbBusinessSettings.business_hours.start;
+      let endStr = dbBusinessSettings.business_hours.end;
+      let duration = dbBusinessSettings.default_service_duration;
+
+      if (isSupabaseConfigured && args.business_id) {
+        const { data: settings } = await supabaseAdmin
+          .from('settings')
+          .select('horarios')
+          .eq('business_id', args.business_id)
+          .maybeSingle();
+
+        if (settings?.horarios) {
+          startStr = settings.horarios.start || startStr;
+          endStr = settings.horarios.end || endStr;
+          duration = 30;
+        }
+      }
 
       const [startH, startM] = startStr.split(':').map(Number);
       const [endH, endM] = endStr.split(':').map(Number);
@@ -275,18 +289,33 @@ export const backendFunctions = {
         allSlots.push(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
       }
 
-      const bookedTimes = dbAppointments
-        .filter(apt => {
-          if (apt.status === 'cancelled') return false;
-          const aptDateStr = new Date(apt.start_time).toISOString().split('T')[0];
-          return aptDateStr === args.fecha;
-        })
-        .map(apt => {
-          const d = new Date(apt.start_time);
-          const h = d.getHours();
-          const m = d.getMinutes();
-          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        });
+      let bookedTimes: string[] = [];
+
+      if (isSupabaseConfigured && args.business_id) {
+        const { data: appointments } = await supabaseAdmin
+          .from('appointments')
+          .select('hora')
+          .eq('business_id', args.business_id)
+          .eq('fecha', args.fecha)
+          .neq('estado', 'cancelled');
+
+        if (appointments) {
+          bookedTimes = appointments.map(a => a.hora);
+        }
+      } else {
+        bookedTimes = dbAppointments
+          .filter(apt => {
+            if (apt.status === 'cancelled') return false;
+            const aptDateStr = new Date(apt.start_time).toISOString().split('T')[0];
+            return aptDateStr === args.fecha;
+          })
+          .map(apt => {
+            const d = new Date(apt.start_time);
+            const h = d.getHours();
+            const m = d.getMinutes();
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          });
+      }
 
       const freeSlots = allSlots.filter(slot => !bookedTimes.includes(slot));
       return { success: true, huecos: freeSlots };
@@ -420,8 +449,34 @@ export const backendFunctions = {
     return { success: true, configuracion: dbBusinessSettings };
   },
 
-  // 12. getBusinessSettings()
-  getBusinessSettings: (): { success: boolean; name: string; phone_whatsapp: string; default_service_duration: number; open_days: number[]; business_hours: { start: string; end: string }; direccion: string } => {
+  // 12. getBusinessSettings(business_id)
+  getBusinessSettings: async (args?: { business_id?: string }): Promise<{ success: boolean; name: string; phone_whatsapp: string; default_service_duration: number; open_days: number[]; business_hours: { start: string; end: string }; direccion: string }> => {
+    if (isSupabaseConfigured && args?.business_id) {
+      const { data: biz } = await supabaseAdmin
+        .from('businesses')
+        .select('*')
+        .eq('id', args.business_id)
+        .maybeSingle();
+
+      const { data: settings } = await supabaseAdmin
+        .from('settings')
+        .select('horarios')
+        .eq('business_id', args.business_id)
+        .maybeSingle();
+
+      const horarios = settings?.horarios || { start: '09:00', end: '20:30', open_days: [1, 2, 3, 4, 5, 6] };
+
+      return {
+        success: true,
+        name: biz?.nombre || dbBusinessSettings.name,
+        phone_whatsapp: biz?.telefono || dbBusinessSettings.phone_whatsapp,
+        default_service_duration: 30,
+        open_days: horarios.open_days || dbBusinessSettings.open_days,
+        business_hours: { start: horarios.start || dbBusinessSettings.business_hours.start, end: horarios.end || dbBusinessSettings.business_hours.end },
+        direccion: biz?.direccion || 'Calle Gran Vía 45, Madrid'
+      };
+    }
+
     return {
       success: true,
       name: dbBusinessSettings.name,
@@ -440,6 +495,195 @@ export const backendFunctions = {
       ...updated
     };
     return { success: true, configuracion: dbBusinessSettings };
+  },
+
+  // 14. consultar_disponibilidad() — check if a date+time slot is free in Supabase
+  consultar_disponibilidad: async (args: { business_id: string; fecha: string; hora: string }): Promise<{ success: boolean; disponible: boolean; message?: string }> => {
+    try {
+      if (isSupabaseConfigured) {
+        const { data: existing } = await supabaseAdmin
+          .from('appointments')
+          .select('id')
+          .eq('business_id', args.business_id)
+          .eq('fecha', args.fecha)
+          .eq('hora', args.hora)
+          .neq('estado', 'cancelled')
+          .maybeSingle();
+
+        if (existing) {
+          return { success: true, disponible: false, message: 'La hora seleccionada ya está ocupada.' };
+        }
+        return { success: true, disponible: true, message: 'Horario disponible.' };
+      }
+
+      // Fallback in-memory
+      const startIso = `${args.fecha}T${args.hora}:00`;
+      const startDate = new Date(startIso);
+      const alreadyBooked = dbAppointments.some(apt => {
+        if (apt.status === 'cancelled') return false;
+        return new Date(apt.start_time).getTime() === startDate.getTime();
+      });
+      return {
+        success: true,
+        disponible: !alreadyBooked,
+        message: alreadyBooked ? 'La hora seleccionada ya está ocupada.' : 'Horario disponible.'
+      };
+    } catch (e: any) {
+      return { success: false, disponible: false, message: e.message };
+    }
+  },
+
+  // 15. crear_cita() — creates a real appointment in Supabase
+  crear_cita: async (args: { nombre: string; telefono: string; servicio: string; fecha: string; hora: string; business_id: string }): Promise<{ success: boolean; cita?: any; message?: string }> => {
+    try {
+      if (isSupabaseConfigured) {
+        // 1. Find or create customer
+        const { data: existingCustomer } = await supabaseAdmin
+          .from('customers')
+          .select('*')
+          .eq('business_id', args.business_id)
+          .eq('telefono', args.telefono)
+          .maybeSingle();
+
+        let customer = existingCustomer;
+        if (!customer) {
+          const { data: newCustomer, error: createErr } = await supabaseAdmin
+            .from('customers')
+            .insert({
+              business_id: args.business_id,
+              nombre: args.nombre,
+              telefono: args.telefono,
+              notas: 'Registrado automáticamente al agendar cita por WhatsApp.'
+            })
+            .select()
+            .single();
+
+          if (createErr) throw createErr;
+          customer = newCustomer;
+        }
+
+        // 2. Get first employee (if any)
+        const { data: employees } = await supabaseAdmin
+          .from('employees')
+          .select('id, full_name')
+          .eq('business_id', args.business_id)
+          .limit(1);
+
+        const employeeId = employees?.[0]?.id || null;
+        const employeeName = employees?.[0]?.full_name || null;
+
+        // 3. Find service by name
+        const term = args.servicio.toLowerCase();
+        const { data: services } = await supabaseAdmin
+          .from('services')
+          .select('*')
+          .eq('business_id', args.business_id)
+          .eq('is_active', true);
+
+        let service = services?.find((s: any) => s.nombre.toLowerCase().includes(term));
+        if (!service) {
+          service = services?.[0];
+        }
+        if (!service) {
+          return { success: false, message: 'No hay servicios activos disponibles.' };
+        }
+
+        // 4. Check double-booking
+        const { data: existingApt } = await supabaseAdmin
+          .from('appointments')
+          .select('id')
+          .eq('business_id', args.business_id)
+          .eq('fecha', args.fecha)
+          .eq('hora', args.hora)
+          .neq('estado', 'cancelled')
+          .maybeSingle();
+
+        if (existingApt) {
+          return { success: false, message: 'La hora seleccionada ya está ocupada.' };
+        }
+
+        // 5. Create appointment
+        const { data: cita, error: aptErr } = await supabaseAdmin
+          .from('appointments')
+          .insert({
+            business_id: args.business_id,
+            customer_id: customer.id,
+            employee_id: employeeId,
+            servicio_id: service.id,
+            fecha: args.fecha,
+            hora: args.hora,
+            estado: 'pending',
+            origen: 'IA',
+            notes: 'Creado por Asistente IA WhatsApp.',
+            price_charged: service.precio
+          })
+          .select(`
+            *,
+            customer:customers(*),
+            service:services(*)
+          `)
+          .single();
+
+        if (aptErr) throw aptErr;
+        return { success: true, cita: { ...cita, employee_name: employeeName } };
+      }
+
+      // Fallback in-memory
+      const startIso = `${args.fecha}T${args.hora}:00`;
+      const startDate = new Date(startIso);
+      if (isNaN(startDate.getTime())) {
+        return { success: false, message: 'La fecha u hora de la cita son inválidas.' };
+      }
+
+      const alreadyBooked = dbAppointments.some(apt => {
+        if (apt.status === 'cancelled') return false;
+        return new Date(apt.start_time).getTime() === startDate.getTime();
+      });
+      if (alreadyBooked) {
+        return { success: false, message: 'La hora seleccionada ya está ocupada.' };
+      }
+
+      let client = dbCustomers.find(c => c.phone === args.telefono);
+      if (!client) {
+        client = {
+          id: `cust_${Math.random().toString(36).substr(2, 9)}`,
+          first_name: args.nombre,
+          last_name: '',
+          phone: args.telefono,
+          email: null,
+          notes: 'Registrado automáticamente al agendar cita por WhatsApp.',
+          numero_visitas: 0,
+          gasto_total: 0.00,
+          servicio_favorito: null,
+          created_at: new Date().toISOString()
+        };
+        dbCustomers.push(client);
+      }
+
+      const term = args.servicio.toLowerCase();
+      let service = dbServices.find(s => s.name.toLowerCase().includes(term));
+      if (!service) {
+        service = dbServices[0];
+      }
+
+      const endDate = new Date(startDate.getTime() + service.duration * 60 * 1000);
+      const newApt: Appointment = {
+        id: `apt_${Math.random().toString(36).substr(2, 9)}`,
+        customer_id: client.id,
+        service_id: service.id,
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
+        status: 'pending',
+        notes: 'Creado por Asistente IA WhatsApp.',
+        price_charged: service.price,
+        created_at: new Date().toISOString()
+      };
+
+      dbAppointments.push(newApt);
+      return { success: true, cita: newApt };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
   },
 
   // 11. createAppointment() with Supabase persistence (real appointments)

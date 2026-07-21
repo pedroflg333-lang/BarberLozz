@@ -26,10 +26,15 @@ REGLAS DE ORO:
 1. NUNCA hables de aspectos técnicos, configuraciones, APIs, servidores, bases de datos, simulaciones o de que estás en "fase de pruebas". Háblale al cliente como si fueras un recepcionista de carne y hueso en la barbería física.
 2. Habla siempre en español con un tono cálido, amable y muy natural.
 3. NUNCA inventes horarios de apertura, días de descanso, teléfonos ni ubicaciones de la peluquería. Si el cliente pregunta por estos temas, el sistema te proveerá la información real de la base de datos para que respondas de forma estricta sobre ella.
-4. NUNCA inventes horarios de cita ni huecos libres bajo ninguna circunstancia. Confirma una reserva de cita ÚNICAMENTE cuando el sistema te inyecte el mensaje de que la cita ha sido GUARDADA con éxito en la base de datos (success=true).
-5. Cuando confirmes una cita, hazlo de forma natural, cercana y usando emojis. Sigue exactamente esta estructura o una muy similar:
+4. NUNCA inventes horarios de cita ni huecos libres bajo ninguna circunstancia. Confirma una reserva de cita ÚNICAMENTE cuando el sistema te inyecte los datos reales de la cita guardada en la base de datos con éxito.
+5. Cuando confirmes una cita, hazlo de forma natural, cercana y usando los datos exactos que el sistema te ha proporcionado (fecha, hora, servicio, empleado, referencia). Sigue esta estructura:
    "¡Perfecto! 😊
-   Te esperamos [DÍA/MAÑANA] a las [HORA].
+   Tu cita ha quedado reservada.
+   Fecha: [FECHA]
+   Hora: [HORA]
+   Servicio: [SERVICIO]
+   Empleado: [EMPLEADO]
+   Referencia: [REFERENCIA]
    Si finalmente no puedes venir, avísanos por aquí.
    ¡Gracias!"`;
 
@@ -96,6 +101,33 @@ const extractTime = (text: string): string => {
     }
   }
   return '';
+};
+
+// Helper to extract service name from user message (improved)
+const extractService = (text: string, services?: any[]): string => {
+  const msg = text.toLowerCase();
+  
+  if (services && services.length > 0) {
+    for (const s of services) {
+      if (msg.includes(s.nombre.toLowerCase())) {
+        return s.nombre;
+      }
+    }
+  }
+  
+  if (msg.includes('cortar') || msg.includes('corte') || msg.includes('pelo') || msg.includes('fade') || msg.includes('degradado')) {
+    return 'Corte Degradado (Fade)';
+  }
+  if (msg.includes('barba')) {
+    return 'Arreglo de Barba Premium';
+  }
+  if (msg.includes('completo') || msg.includes('completo')) {
+    return 'Servicio Completo (Corte + Barba + Lavado)';
+  }
+  if (msg.includes('clásico') || msg.includes('clasico') || msg.includes('tijera')) {
+    return 'Corte Clásico Tijera';
+  }
+  return 'Corte Degradado (Fade)';
 };
 
 // Helper function to resolve target date based on messages context
@@ -166,14 +198,7 @@ const detectCreateAppointmentIntent = (userMessage: string): { matches: boolean;
     return { matches: false, hora: '', servicio: '' };
   }
 
-  let extractedService = 'Corte Degradado';
-  if (msg.includes('barba')) {
-    extractedService = 'Arreglo de Barba Premium';
-  } else if (msg.includes('completo')) {
-    extractedService = 'Servicio Completo';
-  } else if (msg.includes('clásico') || msg.includes('clasico')) {
-    extractedService = 'Corte Clásico Tijera';
-  }
+  const extractedService = extractService(msg);
 
   return { matches: true, hora: extractedHour, servicio: extractedService };
 };
@@ -230,39 +255,59 @@ app.post('/api/chat', async (req, res) => {
     
     if (bookingIntent.matches) {
       const resolvedDate = resolveConversationDate(threadHistory);
-      console.log(`[WhatsApp Tool] Crear cita para +${providerResult.phone}: ${resolvedDate} a las ${bookingIntent.hora}`);
+      const bid = business_id || '';
       
-      const toolResult = await backendFunctions.createAppointment({
-        business_id: business_id || 'bs_barberlozz',
-        nombre: providerResult.name,
-        telefono: providerResult.phone,
+      console.log(`[WhatsApp Tool] Detected booking intent para +${providerResult.phone}: ${resolvedDate} a las ${bookingIntent.hora}`);
+
+      // 4a. First consult availability in Supabase
+      const disponibilidad = await backendFunctions.consultar_disponibilidad({
+        business_id: bid,
         fecha: resolvedDate,
-        hora: bookingIntent.hora,
-        servicio: bookingIntent.servicio
+        hora: bookingIntent.hora
       });
 
       functionCallsExecuted.push({
-        functionName: 'createAppointment',
-        args: {
-          business_id: business_id || 'bs_barberlozz',
-          nombre: providerResult.name,
-          telefono: providerResult.phone,
-          fecha: resolvedDate,
-          hora: bookingIntent.hora,
-          servicio: bookingIntent.servicio
-        },
-        result: toolResult
+        functionName: 'consultar_disponibilidad',
+        args: { business_id: bid, fecha: resolvedDate, hora: bookingIntent.hora },
+        result: disponibilidad
       });
 
-      if (toolResult.success) {
-        const appt = toolResult.appointment;
-        const aptId = appt?.id ? `#AP-${appt.id.toString().substring(0, 6).toUpperCase()}` : '#AP-000000';
-        const serviceName = appt?.service?.nombre || bookingIntent.servicio;
-        const employeeName = appt?.employee?.full_name || 'BarberLozz';
+      if (disponibilidad.disponible) {
+        // 4b. Create the appointment
+        const toolResult = await backendFunctions.crear_cita({
+          nombre: providerResult.name,
+          telefono: providerResult.phone,
+          servicio: bookingIntent.servicio,
+          fecha: resolvedDate,
+          hora: bookingIntent.hora,
+          business_id: bid
+        });
 
-        customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: El sistema ha creado con ÉXITO la cita en la base de datos (success=true) para ${providerResult.name} (${providerResult.phone}) el día ${resolvedDate} a las ${bookingIntent.hora} para el servicio: ${bookingIntent.servicio}. Redacta una respuesta muy alegre y atenta confirmando la cita. Incluye los siguientes datos reales:\n- Fecha: ${resolvedDate}\n- Hora: ${bookingIntent.hora}\n- Servicio: ${serviceName}\n- Empleado: ${employeeName}\n- Referencia: ${aptId}`;
+        functionCallsExecuted.push({
+          functionName: 'crear_cita',
+          args: {
+            nombre: providerResult.name,
+            telefono: providerResult.phone,
+            servicio: bookingIntent.servicio,
+            fecha: resolvedDate,
+            hora: bookingIntent.hora,
+            business_id: bid
+          },
+          result: toolResult
+        });
+
+        if (toolResult.success) {
+          const cita = toolResult.cita;
+          const aptId = cita?.id ? `#AP-${cita.id.toString().substring(0, 6).toUpperCase()}` : '#AP-000000';
+          const serviceName = cita?.service?.nombre || bookingIntent.servicio;
+          const employeeName = cita?.employee_name || 'BarberLozz';
+
+          customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: El sistema ha creado con ÉXITO la cita en la base de datos (success=true) para ${providerResult.name} (${providerResult.phone}) el día ${resolvedDate} a las ${bookingIntent.hora} para el servicio: ${bookingIntent.servicio}. Redacta una respuesta muy alegre y atenta confirmando la cita. Incluye los siguientes datos reales:\n- Fecha: ${resolvedDate}\n- Hora: ${bookingIntent.hora}\n- Servicio: ${serviceName}\n- Empleado: ${employeeName}\n- Referencia: ${aptId}\n- Origen: IA`;
+        } else {
+          customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: El sistema ha RECHAZADO la cita en la base de datos (success=false) con el mensaje: "${toolResult.message || 'Error desconocido'}". Responde de manera sumamente educada explicando que hubo un problema y ofrécele ayuda para buscar otro horario.`;
+        }
       } else {
-        customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: El sistema ha RECHAZADO la cita en la base de datos (success=false) porque la hora ${bookingIntent.hora} el día ${resolvedDate} ya está ocupada por otra reserva. Responde de manera sumamente educada diciendo exactamente: "Lo siento, esa hora acaba de ocuparse. ¿Quieres otra opción?" y ofrécele consultar otros huecos disponibles.`;
+        customSystemPromptAddition = `\n\n[INFORMACIÓN DE LA BASE DE DATOS]: La hora ${bookingIntent.hora} el día ${resolvedDate} NO está disponible (ocupada). Responde de manera sumamente educada diciendo exactamente: "Lo siento, esa hora acaba de ocuparse. ¿Quieres otra opción?" y ofrécele consultar otros huecos disponibles.`;
       }
 
     } else {
@@ -271,7 +316,7 @@ app.post('/api/chat', async (req, res) => {
       if (searchIntent.matches) {
         console.log(`[WhatsApp Tool] Consultar citas para +${providerResult.phone}: ${searchIntent.fecha}`);
         
-        const toolResult = backendFunctions.buscarHuecos({ fecha: searchIntent.fecha });
+        const toolResult = await backendFunctions.buscarHuecos({ fecha: searchIntent.fecha, business_id: business_id || '' });
         
         functionCallsExecuted.push({
           functionName: 'buscarHuecos',
@@ -289,7 +334,7 @@ app.post('/api/chat', async (req, res) => {
         // DETECT INTENT: Check business hours or opening days
         console.log(`[WhatsApp Tool] Consultar horarios/configuración del negocio`);
         
-        const settings = backendFunctions.getBusinessSettings();
+        const settings = await backendFunctions.getBusinessSettings({ business_id: business_id || '' });
         
         functionCallsExecuted.push({
           functionName: 'getBusinessSettings',
@@ -332,8 +377,8 @@ app.post('/api/chat', async (req, res) => {
     const finalThreadMessages = backendFunctions.getConversationHistoryForOllama(providerResult.phone);
 
     const createdAppointment = functionCallsExecuted
-      .find(t => t.functionName === 'createAppointment' && t.result?.success)
-      ?.result?.appointment || null;
+      .find(t => (t.functionName === 'crear_cita' || t.functionName === 'createAppointment') && t.result?.success)
+      ?.result?.cita || null;
 
     res.json({
       messages: finalThreadMessages,
