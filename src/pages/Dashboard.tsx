@@ -330,7 +330,7 @@ export const Dashboard: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {upcomingApts.map((apt, idx) => {
+            {upcomingApts.map((apt) => {
               const custName = apt.customer?.nombre || 'Cliente General';
               const srvName = apt.service?.nombre || 'Servicio';
               const srvColor = apt.service?.color || '#D4AF37';

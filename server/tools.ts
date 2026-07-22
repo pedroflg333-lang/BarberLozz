@@ -1,6 +1,10 @@
 // In-memory Database & Tool Execution for BarberLozz Manager (Laboratorio IA Backend)
 
 import { supabase, supabaseAdmin, isSupabaseConfigured } from './supabase.js';
+import { DEFAULT_BUSINESS_ID } from './config.js';
+
+const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+const isPersistentMode = () => isSupabaseConfigured && isUUID(DEFAULT_BUSINESS_ID);
 
 export interface Customer {
   id: string;
@@ -56,6 +60,7 @@ export interface Conversation {
   last_message: string | null;
   updated_at: string;
   created_at: string;
+  customer_id?: string;
 }
 
 export interface WhatsAppMessage {
@@ -186,8 +191,99 @@ let dbWhatsAppMessages: WhatsAppMessage[] = [];
 
 // 10 core receptionist functions
 export const backendFunctions = {
-  // Get or Create Conversation thread for a phone number
-  getOrCreateConversation: (phone: string, name: string): Conversation => {
+  // Get or Create Conversation thread for a phone number (persisted in Supabase)
+  getOrCreateConversation: async (phone: string, name: string, businessId: string, channel: string): Promise<Conversation & { customer_id?: string }> => {
+    const bid = businessId || DEFAULT_BUSINESS_ID;
+    if (isPersistentMode()) {
+      const { data: existingConv } = await supabaseAdmin
+        .from('conversations')
+        .select('*, customer:customers(*)')
+        .eq('business_id', bid)
+        .eq('customer_phone', phone)
+        .maybeSingle();
+
+      if (existingConv) {
+        // Update customer name if it changed
+        if (existingConv.customer && existingConv.customer.nombre !== name) {
+          await supabaseAdmin
+            .from('customers')
+            .update({ nombre: name })
+            .eq('id', existingConv.customer_id);
+        }
+        return {
+          id: existingConv.id,
+          customer_phone: existingConv.customer_phone,
+          status: existingConv.status,
+          last_message: existingConv.last_message,
+          updated_at: existingConv.updated_at,
+          created_at: existingConv.created_at,
+          customer_id: existingConv.customer_id
+        };
+      }
+
+      // Find or create customer in Supabase
+      const { data: existingCustomer } = await supabaseAdmin
+        .from('customers')
+        .select('id, nombre')
+        .eq('business_id', bid)
+        .eq('telefono', phone)
+        .maybeSingle();
+
+      let customerId: string | null = existingCustomer?.id || null;
+      if (existingCustomer && existingCustomer.nombre !== name) {
+        await supabaseAdmin
+          .from('customers')
+          .update({ nombre: name })
+          .eq('id', existingCustomer.id);
+      }
+      if (!customerId) {
+        const { data: newCustomer, error: createErr } = await supabaseAdmin
+          .from('customers')
+          .insert({
+            business_id: bid,
+            nombre: name,
+            telefono: phone,
+            notas: 'Registrado automáticamente vía ' + (channel === 'WHATSAPP' ? 'WhatsApp' : 'Laboratorio IA') + '.'
+          })
+          .select('id')
+          .single();
+
+        if (createErr || !newCustomer) {
+          throw new Error('Error creating customer in Supabase: ' + (createErr?.message || 'unknown'));
+        }
+        customerId = newCustomer.id;
+      }
+
+      // Create new conversation in Supabase
+      const { data: newConv, error: convErr } = await supabaseAdmin
+        .from('conversations')
+        .insert({
+          business_id: bid,
+          customer_id: customerId,
+          customer_phone: phone,
+          status: 'ai_pending',
+          ai_enabled: true,
+          last_message: null
+        })
+        .select()
+        .single();
+
+      if (convErr || !newConv) {
+        throw new Error('Error creating conversation in Supabase: ' + (convErr?.message || 'unknown'));
+      }
+
+      return {
+        id: newConv.id,
+        customer_phone: newConv.customer_phone,
+        status: newConv.status,
+        last_message: newConv.last_message,
+        updated_at: newConv.updated_at,
+        created_at: newConv.created_at,
+        customer_id: newConv.customer_id
+      };
+    }
+
+    // Non-persistent mode: in-memory fallback
     let conv = dbConversations.find(c => c.customer_phone === phone);
     if (!conv) {
       conv = {
@@ -200,7 +296,6 @@ export const backendFunctions = {
       };
       dbConversations.push(conv);
 
-      // Auto-register customer if not exists
       let client = dbCustomers.find(c => c.phone === phone);
       if (!client) {
         dbCustomers.push({
@@ -220,29 +315,105 @@ export const backendFunctions = {
     return conv;
   },
 
-  // Save Message in persistent memory thread
-  addMessage: (phone: string, direction: 'incoming' | 'outgoing', content: string): WhatsAppMessage => {
-    const conv = backendFunctions.getOrCreateConversation(phone, direction === 'incoming' ? 'Cliente de WhatsApp' : 'Asistente');
-    
-    const newMsg: WhatsAppMessage = {
+  // Save Message in Supabase (persisted)
+  addMessage: async (phone: string, direction: 'incoming' | 'outgoing', content: string, businessId?: string, channel?: string, existingConversationId?: string): Promise<WhatsAppMessage & { conversation_id: string }> => {
+    const conv = existingConversationId
+      ? { id: existingConversationId, customer_phone: phone }
+      : await backendFunctions.getOrCreateConversation(
+          phone,
+          direction === 'incoming' ? 'Cliente' : 'Asistente',
+          businessId || DEFAULT_BUSINESS_ID,
+          channel || 'WHATSAPP'
+        );
+
+    const now = new Date().toISOString();
+
+    if (isPersistentMode()) {
+      const { error: msgErr } = await supabaseAdmin
+        .from('whatsapp_messages')
+        .insert({
+          conversation_id: conv.id,
+          direction,
+          content,
+          type: 'text',
+          status: direction === 'incoming' ? 'received' : 'sent'
+        });
+
+      if (msgErr) {
+        throw new Error('Error saving message to Supabase: ' + msgErr.message);
+      }
+
+      const { error: convErr } = await supabaseAdmin
+        .from('conversations')
+        .update({
+          last_message: content,
+          updated_at: now
+        })
+        .eq('id', conv.id);
+
+      if (convErr) {
+        throw new Error('Error updating conversation in Supabase: ' + convErr.message);
+      }
+
+      return {
+        id: `msg_${Math.random().toString(36).substr(2, 9)}`,
+        conversation_id: conv.id,
+        direction,
+        content,
+        created_at: now
+      };
+    }
+
+    // In-memory fallback
+    const newMsg: any = {
       id: `msg_${Math.random().toString(36).substr(2, 9)}`,
       conversation_id: conv.id,
       direction,
       content,
-      created_at: new Date().toISOString()
+      created_at: now
     };
-    
     dbWhatsAppMessages.push(newMsg);
-    
-    // Update conversation header
-    conv.last_message = content;
-    conv.updated_at = new Date().toISOString();
-    
+    const dbConv = dbConversations.find(c => c.customer_phone === phone);
+    if (dbConv) {
+      dbConv.last_message = content;
+      dbConv.updated_at = now;
+    }
     return newMsg;
   },
 
-  // Retrieve Thread message history formatted for Ollama
-  getConversationHistoryForOllama: (phone: string): { role: 'user' | 'assistant'; content: string }[] => {
+  // Retrieve Thread message history formatted for Ollama (reads from Supabase)
+  getConversationHistoryForOllama: async (phone: string, businessId?: string): Promise<{ role: 'user' | 'assistant'; content: string }[]> => {
+    if (isPersistentMode()) {
+      const { data: conv, error: convErr } = await supabaseAdmin
+        .from('conversations')
+        .select('id')
+        .eq('business_id', businessId || DEFAULT_BUSINESS_ID)
+        .eq('customer_phone', phone)
+        .maybeSingle();
+
+      if (convErr) {
+        throw new Error('Error fetching conversation from Supabase: ' + convErr.message);
+      }
+      if (!conv) return [];
+
+      const { data: messages, error: msgErr } = await supabaseAdmin
+        .from('whatsapp_messages')
+        .select('direction, content, created_at')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: true });
+
+      if (msgErr) {
+        throw new Error('Error fetching messages from Supabase: ' + msgErr.message);
+      }
+      if (!messages) return [];
+
+      return messages.map((m: any) => ({
+        role: m.direction === 'incoming' ? 'user' : 'assistant',
+        content: m.content
+      }));
+    }
+
+    // In-memory fallback
     const conv = dbConversations.find(c => c.customer_phone === phone);
     if (!conv) return [];
 
@@ -534,7 +705,7 @@ export const backendFunctions = {
   },
 
   // 15. crear_cita() — creates a real appointment in Supabase
-  crear_cita: async (args: { nombre: string; telefono: string; servicio: string; fecha: string; hora: string; business_id: string }): Promise<{ success: boolean; cita?: any; message?: string }> => {
+  crear_cita: async (args: { nombre: string; telefono: string; servicio: string; fecha: string; hora: string; business_id: string; origen?: string }): Promise<{ success: boolean; cita?: any; message?: string }> => {
     try {
       if (isSupabaseConfigured) {
         // 1. Find or create customer
@@ -613,7 +784,7 @@ export const backendFunctions = {
             fecha: args.fecha,
             hora: args.hora,
             estado: 'pending',
-            origen: 'IA',
+            origen: args.origen || 'IA',
             notes: 'Creado por Asistente IA WhatsApp.',
             price_charged: service.precio
           })

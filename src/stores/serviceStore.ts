@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { backendApi } from '../services/backendApi';
 import type { Service } from '../types';
 import { useAuthStore } from './authStore';
+
+const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 interface ServiceState {
   services: Service[];
@@ -24,6 +27,15 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
     if (!businessId) return;
     
     set({ loading: true, error: null });
+    
+    // Use backend proxy (bypasses RLS)
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      const data = await backendApi.getServices(businessId);
+      if (data !== null) {
+        set({ services: data as Service[], loading: false });
+        return;
+      }
+    }
     
     if (!isSupabaseConfigured) {
       const key = `services_${businessId}`;

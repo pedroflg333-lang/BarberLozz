@@ -77,6 +77,8 @@ export const Assistant: React.FC = () => {
   useEffect(() => {
     fetchConversations();
     fetchBusiness();
+    const interval = setInterval(fetchConversations, 10000);
+    return () => clearInterval(interval);
   }, [fetchConversations, fetchBusiness]);
 
   useEffect(() => {

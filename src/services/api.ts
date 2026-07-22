@@ -1,4 +1,4 @@
-const BACKEND_URL = 'http://localhost:4000';
+const BACKEND_URL = 'https://visual-faq-kevin-academics.trycloudflare.com';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -17,13 +17,14 @@ export interface ChatResponse {
   messages: ChatMessage[];
   executedTools: ExecutedTool[];
   createdAppointment?: any;
+  conversation_id?: string;
 }
 
 export const aiLabService = {
   /**
    * Sends the simulated WhatsApp message to our Node.js AI webhook server
    */
-  sendWhatsAppMessage: async (payload: { phone: string; name: string; message: string; source: 'laboratory'; business_id?: string | null }): Promise<ChatResponse> => {
+  sendWhatsAppMessage: async (payload: { phone: string; name: string; message: string; source: 'laboratory'; business_id?: string | null; channel: string }): Promise<ChatResponse> => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
@@ -36,7 +37,8 @@ export const aiLabService = {
           message: payload.message,
           timestamp: new Date().toISOString(),
           source: payload.source,
-          business_id: payload.business_id
+          business_id: payload.business_id,
+          channel: payload.channel || 'LABORATORIO'
         })
       });
 

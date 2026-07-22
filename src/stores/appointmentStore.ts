@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { backendApi } from '../services/backendApi';
 import type { Appointment } from '../types';
 import { useAuthStore } from './authStore';
 import { useCustomerStore } from './customerStore';
 import { useServiceStore } from './serviceStore';
+
+const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 interface AppointmentState {
   appointments: Appointment[];
@@ -28,6 +31,16 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     
     set({ loading: true, error: null });
     
+    // Use backend proxy when businessId is a real UUID (bypasses RLS)
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      const data = await backendApi.getAppointments(businessId);
+      if (data !== null) {
+        set({ appointments: data as Appointment[], loading: false });
+        return;
+      }
+      // If backend proxy fails, try direct Supabase
+    }
+    
     if (!isSupabaseConfigured) {
       const key = `appointments_${businessId}`;
       const cached = localStorage.getItem(key);
@@ -36,7 +49,6 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
       if (cached) {
         try { list = JSON.parse(cached); } catch (e) {}
       } else {
-        // Seed default mock appointments
         const getTodayDateStr = () => new Date().toISOString().split('T')[0];
         list = [
           {
@@ -71,7 +83,6 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
         localStorage.setItem(key, JSON.stringify(list));
       }
       
-      // Populate customer and service relation from local stores
       const customers = useCustomerStore.getState().customers;
       const services = useServiceStore.getState().services;
       
@@ -95,11 +106,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('appointments')
-        .select(`
-          *,
-          customer:customers(*),
-          service:services(*)
-        `)
+        .select('*, customer:customers(*), service:services(*)')
         .eq('business_id', businessId)
         .order('fecha', { ascending: true })
         .order('hora', { ascending: true });
@@ -162,6 +169,21 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     if (!businessId) return false;
     
     set({ loading: true, error: null });
+    
+    // Use backend proxy (bypasses RLS)
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      try {
+        const res = await fetch(`http://localhost:4000/api/appointments/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        });
+        if (res.ok) {
+          await get().fetchAppointments();
+          return true;
+        }
+      } catch {}
+    }
     
     if (!isSupabaseConfigured) {
       const key = `appointments_${businessId}`;

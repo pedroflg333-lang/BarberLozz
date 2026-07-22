@@ -4,6 +4,7 @@ import type { ChatMessage, ExecutedTool } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { useAppointmentStore } from '../stores/appointmentStore';
 import { useCustomerStore } from '../stores/customerStore';
+import { useChatStore } from '../stores/chatStore';
 import { 
   Send, 
   Bot, 
@@ -96,7 +97,8 @@ export const IaLab: React.FC = () => {
         name: simulatedName,
         message: userText,
         source: 'laboratory',
-        business_id: businessId
+        business_id: businessId,
+        channel: 'LABORATORIO'
       });
 
       // Calculate processing time
@@ -114,10 +116,13 @@ export const IaLab: React.FC = () => {
         setExecutedTools(prev => [...response.executedTools, ...prev]);
       }
 
-      // 5. If a real appointment was created, refresh stores so Dashboard/Calendar update immediately
+      // 5. If a real appointment or conversation was created, refresh stores
       if (response.createdAppointment) {
         useAppointmentStore.getState().fetchAppointments();
         useCustomerStore.getState().fetchCustomers();
+      }
+      if (response.conversation_id) {
+        useChatStore.getState().fetchConversations();
       }
     } catch (err: any) {
       setError(err.message || 'Ocurrió un error al procesar el mensaje.');
@@ -148,7 +153,7 @@ export const IaLab: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-100px)] flex flex-col lg:flex-row bg-white border border-neutral-200 rounded-3xl overflow-hidden shadow-sm animate-fade-in">
+    <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-100px)] flex flex-col lg:flex-row bg-white border border-neutral-200 rounded-3xl overflow-hidden shadow-sm animate-fade-in w-full max-w-full">
       
       {/* 1. WHATSAPP WEBHOOK SIMULATOR & THREAD (LEFT & CENTER PANELS COMBINED) */}
       <section className="flex-1 flex flex-col min-w-0 bg-[#F5F5F7]">
@@ -161,26 +166,27 @@ export const IaLab: React.FC = () => {
             </div>
             <div>
               <h2 className="text-xl font-black text-black m-0">Simulador de WhatsApp</h2>
-              <p className="text-xs text-neutral-400 m-0 mt-0.5 font-semibold">Integración Nativa por Número de Teléfono (Webhook)</p>
+              <p className="text-xs text-neutral-400 m-0 mt-0.5 font-semibold truncate max-w-full">Integración Nativa por Número de Teléfono (Webhook)</p>
             </div>
           </div>
 
           {/* Connection Pill */}
-          <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-1.5 px-3.5 py-2 border rounded-xl text-xs font-bold ${
+          <div className="flex items-center gap-2 shrink-0">
+            <div className={`flex items-center gap-1.5 px-3.5 py-2 border rounded-xl text-xs font-bold shrink-0 ${
               ollamaConnected 
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                 : 'bg-red-50 text-red-700 border-red-200'
             }`}>
               {ollamaConnected ? (
                 <>
-                  <Wifi className="w-4 h-4 text-emerald-500 animate-pulse" />
-                  <span>Ollama conectado ({ollamaModel})</span>
+                  <Wifi className="w-4 h-4 text-emerald-500 animate-pulse shrink-0" />
+                  <span className="hidden sm:inline">Ollama conectado ({ollamaModel})</span>
+                  <span className="sm:hidden">{ollamaModel}</span>
                 </>
               ) : (
                 <>
-                  <WifiOff className="w-4 h-4 text-red-500" />
-                  <span>Ollama desconectado</span>
+                  <WifiOff className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>Desconectado</span>
                 </>
               )}
             </div>
@@ -188,13 +194,13 @@ export const IaLab: React.FC = () => {
         </header>
 
         {/* SIMULATOR CONFIGURATION SUB-BAR */}
-        <div className="bg-neutral-900 text-white px-6 py-3.5 flex flex-col sm:flex-row items-center gap-4 border-b border-neutral-800 shrink-0">
+        <div className="bg-neutral-900 text-white px-3 md:px-6 py-3.5 flex flex-col sm:flex-row items-center gap-3 border-b border-neutral-800 shrink-0">
           <div className="flex items-center gap-2 text-xs font-bold text-neutral-400 uppercase tracking-wider shrink-0">
             <Terminal className="w-4 h-4 text-emerald-500" />
             <span>Remitente WhatsApp:</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:w-auto flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto flex-1 min-w-0">
             <div className="relative">
               <Phone className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -252,7 +258,7 @@ export const IaLab: React.FC = () => {
                   className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[70%] rounded-2xl px-4 py-3 shadow-sm flex flex-col gap-1 relative ${
+                    className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm flex flex-col gap-1 relative ${
                       isUser 
                         ? 'bg-[#E1F3D4] text-black rounded-tr-none' 
                         : 'bg-white text-black rounded-tl-none'
@@ -284,30 +290,30 @@ export const IaLab: React.FC = () => {
         </div>
 
         {/* Input box form */}
-        <footer className="bg-white p-4 border-t border-neutral-200 shrink-0">
-          <form onSubmit={handleSend} className="flex gap-2">
+        <footer className="bg-white p-3 md:p-4 border-t border-neutral-200 shrink-0">
+          <form onSubmit={handleSend} className="flex gap-2 w-full">
             <input
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={loading}
-              placeholder={`Escribe un mensaje de simulación desde +${simulatedPhone}...`}
-              className="flex-1 px-4 py-4 rounded-xl bg-neutral-100 border-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base text-black font-semibold disabled:opacity-50"
+              placeholder={`Mensaje desde +${simulatedPhone}...`}
+              className="flex-1 min-w-0 px-4 py-3 md:py-4 rounded-xl bg-neutral-100 border-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base text-black font-semibold disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={loading || !inputText.trim()}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-xl flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border border-emerald-500"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white p-3 md:p-4 rounded-xl flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border border-emerald-500 shrink-0"
               title="Enviar mensaje de simulación"
             >
-              <Send className="w-6 h-6 stroke-[2]" />
+              <Send className="w-5 h-5 md:w-6 md:h-6 stroke-[2]" />
             </button>
           </form>
         </footer>
       </section>
 
       {/* 2. ADVANCED DEVELOPER CONSOLE & TOOL LOGGER (RIGHT PANEL) */}
-      <section className={`w-full lg:w-[450px] shrink-0 bg-[#121212] text-[#e0e0e0] font-mono flex flex-col border-l border-neutral-800 ${showConsole ? 'flex' : 'hidden'}`}>
+      <section className={`w-full lg:w-[450px] shrink-0 bg-[#121212] text-[#e0e0e0] font-mono flex flex-col border-t lg:border-t-0 lg:border-l border-neutral-800 max-h-[40vh] lg:max-h-none ${showConsole ? 'flex' : 'hidden'}`}>
         
         {/* Console Header */}
         <header className="p-4 border-b border-neutral-800 bg-[#1a1a1a] flex items-center justify-between shrink-0">

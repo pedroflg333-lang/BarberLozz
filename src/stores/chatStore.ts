@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { backendApi } from '../services/backendApi';
 import type { Conversation, WhatsAppMessage } from '../types';
 import { mockConversations, mockWhatsAppMessages } from '../services/mockData';
 import { useAuthStore } from './authStore';
 import { useCustomerStore } from './customerStore';
+
+const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 interface ChatState {
   conversations: Conversation[];
@@ -39,6 +42,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     set({ loading: true, error: null });
     
+    // Use backend proxy when businessId is a real UUID (bypasses RLS)
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      const data = await backendApi.getConversations(businessId);
+      if (data !== null) {
+        set({ conversations: data as Conversation[], loading: false });
+        return;
+      }
+    }
+    
     if (!isSupabaseConfigured) {
       const key = `conversations_${businessId}`;
       const cached = localStorage.getItem(key);
@@ -51,7 +63,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         localStorage.setItem(key, JSON.stringify(list));
       }
       
-      // Populate customer info
       const customers = useCustomerStore.getState().customers;
       if (customers.length === 0) await useCustomerStore.getState().fetchCustomers();
       
@@ -83,6 +94,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   fetchMessages: async (conversationId) => {
     set({ loading: true, error: null });
+    
+    // Use backend proxy (bypasses RLS)
+    if (backendApi.isAvailable()) {
+      const data = await backendApi.getMessages(conversationId);
+      if (data !== null) {
+        set(state => ({
+          messages: { ...state.messages, [conversationId]: data as WhatsAppMessage[] },
+          loading: false
+        }));
+        return;
+      }
+    }
     
     if (!isSupabaseConfigured) {
       const key = `messages_${conversationId}`;
@@ -130,6 +153,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (conversationId, content) => {
     const businessId = useAuthStore.getState().businessId;
     if (!businessId) return false;
+    
+    // Use backend proxy for writes (bypasses RLS)
+    if (backendApi.isAvailable()) {
+      try {
+        const res = await fetch(`http://localhost:4000/api/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction: 'outgoing', content })
+        });
+        if (res.ok) {
+          await get().fetchMessages(conversationId);
+          await get().fetchConversations();
+          return true;
+        }
+      } catch {}
+    }
     
     if (!isSupabaseConfigured) {
       const newMessage: WhatsAppMessage = {
@@ -218,6 +257,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const businessId = useAuthStore.getState().businessId;
     if (!businessId) return false;
     
+    // Use backend proxy (bypasses RLS)
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      try {
+        const res = await fetch(`http://localhost:4000/api/conversations/${conversationId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ai_enabled: false, status: 'human_needed' })
+        });
+        if (res.ok) { await get().fetchConversations(); return true; }
+      } catch {}
+    }
+    
     if (!isSupabaseConfigured) {
       const convKey = `conversations_${businessId}`;
       const cached = localStorage.getItem(convKey);
@@ -258,6 +309,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   resolveConversation: async (conversationId) => {
     const businessId = useAuthStore.getState().businessId;
     if (!businessId) return false;
+    
+    // Use backend proxy (bypasses RLS)
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      try {
+        const res = await fetch(`http://localhost:4000/api/conversations/${conversationId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ai_enabled: true, status: 'ai_resolved' })
+        });
+        if (res.ok) { await get().fetchConversations(); return true; }
+      } catch {}
+    }
     
     if (!isSupabaseConfigured) {
       const convKey = `conversations_${businessId}`;

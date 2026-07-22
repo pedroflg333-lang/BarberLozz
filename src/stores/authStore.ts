@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { DEFAULT_BUSINESS_ID } from '../config';
 import type { Profile } from '../types';
 
 interface AuthState {
@@ -50,7 +51,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Seed default session if nothing cached for mock mode
       const defaultProfile: Profile = {
         id: 'mock_user_id',
-        business_id: 'bs_barberlozz',
+        business_id: DEFAULT_BUSINESS_ID,
         full_name: 'Barber Master',
         role: 'admin',
         created_at: new Date().toISOString()
@@ -65,7 +66,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ 
         user: defaultUser, 
         profile: defaultProfile, 
-        businessId: 'bs_barberlozz', 
+        businessId: DEFAULT_BUSINESS_ID, 
         loading: false 
       });
       return;
@@ -87,11 +88,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ 
           user: session.user, 
           profile: profileData as Profile, 
-          businessId: profileData?.business_id || null,
+          businessId: profileData?.business_id || DEFAULT_BUSINESS_ID,
           loading: false 
         });
       } else {
-        set({ user: null, profile: null, businessId: null, loading: false });
+        set({ user: null, profile: null, businessId: DEFAULT_BUSINESS_ID, loading: false });
       }
     } catch (err: any) {
       set({ error: err.message, loading: false });
@@ -106,7 +107,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (email && password.length >= 4) {
         const mockProfile: Profile = {
           id: 'mock_user_id',
-          business_id: 'bs_barberlozz',
+          business_id: DEFAULT_BUSINESS_ID,
           full_name: 'Barber Master',
           role: 'admin',
           created_at: new Date().toISOString()
@@ -114,7 +115,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         const mockUser = { id: 'mock_user_id', email };
         
         localStorage.setItem('barber_session', JSON.stringify({ user: mockUser, profile: mockProfile }));
-        set({ user: mockUser, profile: mockProfile, businessId: 'bs_barberlozz', loading: false });
+        set({ user: mockUser, profile: mockProfile, businessId: DEFAULT_BUSINESS_ID, loading: false });
         return true;
       } else {
         set({ error: 'Credenciales inválidas (mínimo 4 caracteres en contraseña)', loading: false });
@@ -138,7 +139,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ 
           user: data.user, 
           profile: profileData as Profile, 
-          businessId: profileData?.business_id || null,
+          businessId: profileData?.business_id || DEFAULT_BUSINESS_ID,
           loading: false 
         });
         return true;

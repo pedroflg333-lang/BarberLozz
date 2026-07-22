@@ -178,8 +178,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </main>
       </div>
 
-      {/* Bottom Navigation - Mobile only (extremely simple and reachable) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 py-2 px-3 flex justify-around items-center z-50 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+      {/* Bottom Navigation - Mobile only (scrollable when items overflow) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 py-2 flex overflow-x-auto items-center z-50 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]" style={{paddingBottom: "max(8px, env(safe-area-inset-bottom, 8px))"}}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
@@ -188,7 +188,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center gap-0.5 justify-center flex-1 py-1 px-2 rounded-lg text-center transition-all ${
+              className={`flex flex-col items-center gap-0.5 justify-center flex-shrink-0 py-1 px-3 rounded-lg text-center transition-all ${
                 item.highlight
                   ? 'text-gold font-bold scale-110'
                   : isActive
@@ -199,7 +199,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className={`p-1 rounded-full ${item.highlight ? 'bg-black text-gold shadow-md' : ''}`}>
                 <Icon className="w-6 h-6" />
               </div>
-              <span className="text-[10px] tracking-tight">{item.label}</span>
+              <span className="text-[10px] tracking-tight whitespace-nowrap">{item.label}</span>
             </Link>
           );
         })}

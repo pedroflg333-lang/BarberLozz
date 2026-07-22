@@ -35,12 +35,12 @@ export const Calendar: React.FC = () => {
     fetchConversations();
   }, [fetchAppointments, fetchCustomers, fetchServices, fetchConversations]);
 
-  // Auto-refresh every 15 seconds to pick up AI-created appointments
+  // Auto-refresh every 5 seconds to pick up AI-created appointments
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAppointments();
       fetchCustomers();
-    }, 15000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [fetchAppointments, fetchCustomers]);
 
