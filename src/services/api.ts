@@ -1,4 +1,4 @@
-const BACKEND_URL = 'https://visual-faq-kevin-academics.trycloudflare.com';
+import { BACKEND_URL } from '../config/backend';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -50,7 +50,7 @@ export const aiLabService = {
       return await response.json();
     } catch (e: any) {
       console.error('Error in aiLabService.sendWhatsAppMessage:', e);
-      throw new Error(e.message || 'No se pudo conectar con el servidor del Laboratorio IA. Asegúrate de iniciar el servidor en el puerto 4000.');
+      throw new Error(e.message || `No se pudo conectar con el servidor del Laboratorio IA (${BACKEND_URL}).`);
     }
   },
 

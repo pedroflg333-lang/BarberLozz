@@ -28,7 +28,6 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
     
     set({ loading: true, error: null });
     
-    // Use backend proxy (bypasses RLS)
     if (isUUID(businessId) && backendApi.isAvailable()) {
       const data = await backendApi.getServices(businessId);
       if (data !== null) {
@@ -47,7 +46,6 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
         } catch (e) {}
       }
       
-      // Default Mock Services Seed
       const seeded: Service[] = [
         {
           id: 'srv_1',
@@ -126,6 +124,21 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
       return true;
     }
     
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      const result = await backendApi.createService({
+        ...serviceData,
+        business_id: businessId
+      });
+      if (result !== null) {
+        const currentList = get().services;
+        const updatedList = [...currentList, result as Service].sort((a, b) => 
+          a.nombre.localeCompare(b.nombre)
+        );
+        set({ services: updatedList, loading: false });
+        return true;
+      }
+    }
+    
     try {
       const { data, error } = await supabase
         .from('services')
@@ -167,6 +180,17 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
       return true;
     }
     
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      const result = await backendApi.updateService(id, updated);
+      if (result !== null) {
+        const updatedList = get().services.map(s => 
+          s.id === id ? { ...s, ...updated } : s
+        ).sort((a, b) => a.nombre.localeCompare(b.nombre));
+        set({ services: updatedList, loading: false });
+        return true;
+      }
+    }
+    
     try {
       const { error } = await supabase
         .from('services')
@@ -198,6 +222,15 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
       localStorage.setItem(`services_${businessId}`, JSON.stringify(updatedList));
       set({ services: updatedList, loading: false });
       return true;
+    }
+    
+    if (isUUID(id) && backendApi.isAvailable()) {
+      const ok = await backendApi.deleteService(id);
+      if (ok) {
+        const updatedList = get().services.filter(s => s.id !== id);
+        set({ services: updatedList, loading: false });
+        return true;
+      }
     }
     
     try {

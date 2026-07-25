@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { backendApi } from '../services/backendApi';
+import { BACKEND_URL } from '../config/backend';
 import type { Appointment } from '../types';
 import { useAuthStore } from './authStore';
 import { useCustomerStore } from './customerStore';
@@ -10,18 +11,23 @@ const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 
 interface AppointmentState {
   appointments: Appointment[];
+  pendingRequests: Appointment[];
   loading: boolean;
   error: string | null;
   
   fetchAppointments: () => Promise<void>;
+  fetchPendingRequests: () => Promise<void>;
   addAppointment: (appointment: Omit<Appointment, 'id' | 'business_id' | 'created_at'>) => Promise<boolean>;
   updateAppointment: (id: string, updated: Partial<Appointment>) => Promise<boolean>;
   cancelAppointment: (id: string) => Promise<boolean>;
   completeAppointment: (id: string) => Promise<boolean>;
+  confirmAppointment: (id: string) => Promise<boolean>;
+  rejectAppointment: (id: string) => Promise<boolean>;
 }
 
 export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   appointments: [],
+  pendingRequests: [],
   loading: false,
   error: null,
   
@@ -118,6 +124,42 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     }
   },
   
+  fetchPendingRequests: async () => {
+    const businessId = useAuthStore.getState().businessId;
+    if (!businessId) return;
+
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/business/${businessId}/appointments`);
+        if (res.ok) {
+          const data = await res.json();
+          const pending = (data as Appointment[]).filter(a => a.estado === 'pending' && a.origen === 'WEB');
+          set({ pendingRequests: pending });
+          return;
+        }
+      } catch {}
+    }
+
+    if (!isSupabaseConfigured) {
+      set({ pendingRequests: [] });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*, customer:customers(*), service:services(*)')
+        .eq('business_id', businessId)
+        .eq('estado', 'pending')
+        .eq('origen', 'WEB')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      set({ pendingRequests: (data as any[]) || [] });
+    } catch (err: any) {
+      console.error('Error fetching pending requests:', err);
+    }
+  },
+
   addAppointment: async (appointmentData) => {
     const businessId = useAuthStore.getState().businessId;
     if (!businessId) return false;
@@ -173,7 +215,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     // Use backend proxy (bypasses RLS)
     if (isUUID(businessId) && backendApi.isAvailable()) {
       try {
-        const res = await fetch(`http://localhost:4000/api/appointments/${id}`, {
+        const res = await fetch(`${BACKEND_URL}/api/appointments/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updated)
@@ -224,5 +266,77 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   
   completeAppointment: async (id) => {
     return get().updateAppointment(id, { estado: 'completed' });
+  },
+
+  confirmAppointment: async (id) => {
+    const businessId = useAuthStore.getState().businessId;
+    if (!businessId) return false;
+    set({ loading: true, error: null });
+
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/public/bookings/${id}/confirm`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          await get().fetchAppointments();
+          await get().fetchPendingRequests();
+          return true;
+        }
+      } catch {}
+    }
+
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ estado: 'confirmed' })
+        .eq('id', id)
+        .eq('estado', 'pending');
+      if (error) throw error;
+      await get().fetchAppointments();
+      await get().fetchPendingRequests();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, loading: false });
+      return false;
+    }
+  },
+
+  rejectAppointment: async (id) => {
+    const businessId = useAuthStore.getState().businessId;
+    if (!businessId) return false;
+    set({ loading: true, error: null });
+
+    if (isUUID(businessId) && backendApi.isAvailable()) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/public/bookings/${id}/reject`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          await get().fetchAppointments();
+          await get().fetchPendingRequests();
+          return true;
+        }
+      } catch {}
+    }
+
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ estado: 'rejected' })
+        .eq('id', id)
+        .eq('estado', 'pending');
+      if (error) throw error;
+      await get().fetchAppointments();
+      await get().fetchPendingRequests();
+      return true;
+    } catch (err: any) {
+      set({ error: err.message, loading: false });
+      return false;
+    }
   }
 }));

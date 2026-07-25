@@ -1,6 +1,5 @@
 import { isSupabaseConfigured } from './supabase';
-
-const BACKEND_URL = 'http://localhost:4000';
+import { BACKEND_URL } from '../config/backend';
 
 const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
@@ -58,5 +57,40 @@ export const backendApi = {
       if (!res.ok) return null;
       return await res.json();
     } catch { return null; }
+  },
+
+  updateService: async (id: string, data: Record<string, any>) => {
+    if (!isUUID(id)) return null;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/services/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  },
+
+  createService: async (data: Record<string, any>) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/services`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  },
+
+  deleteService: async (id: string) => {
+    if (!isUUID(id)) return null;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/services/${id}`, {
+        method: 'DELETE',
+      });
+      return res.ok;
+    } catch { return false; }
   }
 };

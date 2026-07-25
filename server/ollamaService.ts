@@ -19,7 +19,7 @@ export const OllamaService = {
    * Verifies if the local Ollama service is reachable and the model exists
    */
   isAvailable: async (): Promise<{ connected: boolean; modelExists: boolean }> => {
-    const model = process.env.OLLAMA_MODEL || DEFAULT_MODEL;
+    const model = DEFAULT_MODEL;
     const host = process.env.OLLAMA_BASE_URL || OLLAMA_HOST;
     try {
       const response = await fetch(`${host}/api/tags`, {
@@ -39,7 +39,7 @@ export const OllamaService = {
    * Sends chat message list to Ollama's local endpoint
    */
   chat: async (messages: ChatMessage[], tools?: any[]): Promise<any> => {
-    const model = process.env.OLLAMA_MODEL || DEFAULT_MODEL;
+    const model = DEFAULT_MODEL;
     const host = process.env.OLLAMA_BASE_URL || OLLAMA_HOST;
     
     const body: any = {

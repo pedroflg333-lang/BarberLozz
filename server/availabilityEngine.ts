@@ -241,7 +241,7 @@ export async function getAppointmentsForDate(
     .select('hora, employee_id, servicio_id')
     .eq('business_id', business_id)
     .eq('fecha', date)
-    .neq('estado', 'cancelled');
+    .not('estado', 'in', '("cancelled","rejected")');
 
   return data || [];
 }
@@ -293,7 +293,7 @@ export async function checkAppointmentOverlap(
     .eq('business_id', business_id)
     .eq('employee_id', employee_id)
     .eq('fecha', date)
-    .neq('estado', 'cancelled');
+    .not('estado', 'in', '("cancelled","rejected")');
 
   if (exclude_appointment_id) {
     query = query.neq('id', exclude_appointment_id);

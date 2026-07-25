@@ -205,6 +205,7 @@ export const backendFunctions = {
       if (existingConv) {
         // Update customer name if it changed
         if (existingConv.customer && existingConv.customer.nombre !== name) {
+          console.log(`[FLOW] UPDATING customer name: "${existingConv.customer.nombre}" → "${name}" (customer_id=${existingConv.customer_id})`);
           await supabaseAdmin
             .from('customers')
             .update({ nombre: name })
@@ -231,12 +232,14 @@ export const backendFunctions = {
 
       let customerId: string | null = existingCustomer?.id || null;
       if (existingCustomer && existingCustomer.nombre !== name) {
+        console.log(`[FLOW] UPDATING existing customer name: "${existingCustomer.nombre}" → "${name}" (id=${existingCustomer.id})`);
         await supabaseAdmin
           .from('customers')
           .update({ nombre: name })
           .eq('id', existingCustomer.id);
       }
       if (!customerId) {
+        console.log(`[FLOW] CREATING new customer: name="${name}" phone="${phone}"`);
         const { data: newCustomer, error: createErr } = await supabaseAdmin
           .from('customers')
           .insert({
@@ -325,6 +328,9 @@ export const backendFunctions = {
           businessId || DEFAULT_BUSINESS_ID,
           channel || 'WHATSAPP'
         );
+    if (!existingConversationId) {
+      console.warn(`[FLOW] addMessage(${direction}) WITHOUT conversationId! getOrCreateConversation called with name="${direction === 'incoming' ? 'Cliente' : 'Asistente'}" — this may overwrite customer name!`);
+    }
 
     const now = new Date().toISOString();
 

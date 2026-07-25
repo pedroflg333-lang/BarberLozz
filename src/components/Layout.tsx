@@ -1,71 +1,102 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useBusinessStore } from '../stores/businessStore';
-import { 
-  LayoutDashboard, 
-  Calendar as CalendarIcon, 
-  PlusCircle, 
-  Users, 
-  Scissors, 
-  Settings, 
-  LogOut,
+import { useAppointmentStore } from '../stores/appointmentStore';
+import {
+  LayoutDashboard,
+  Calendar as CalendarIcon,
+  Users,
   Sparkles,
+  Scissors,
+  Settings,
+  LogOut,
   BarChart3,
-  Terminal
+  Terminal,
+  MoreHorizontal,
+  X,
+  PlusCircle,
+  UserCircle,
+  ClipboardList
 } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+interface NavItem {
+  path: string;
+  label: string;
+  icon: any;
+}
+
+const MAIN_NAV: (NavItem & { badge?: boolean })[] = [
+  { path: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
+  { path: '/calendar', label: 'Agenda', icon: CalendarIcon },
+  { path: '/assistant', label: 'IA', icon: Sparkles },
+  { path: '/booking-requests', label: 'Solicitudes', icon: ClipboardList, badge: true },
+  { path: '/customers', label: 'Clientes', icon: Users },
+];
+
+const MORE_NAV: (NavItem & { highlight?: boolean; danger?: boolean; badge?: boolean })[] = [
+  { path: '/services', label: 'Servicios', icon: Scissors },
+  { path: '/statistics', label: 'Estadísticas', icon: BarChart3 },
+  { path: '/settings', label: 'Configuración', icon: Settings },
+  { path: '/lab', label: 'Laboratorio IA', icon: Terminal },
+];
+
+const SECTION_TITLES: Record<string, string> = {
+  '/dashboard': 'Inicio',
+  '/calendar': 'Agenda',
+  '/assistant': 'Recepcionista IA',
+  '/customers': 'Clientes',
+  '/services': 'Servicios',
+  '/statistics': 'Estadísticas',
+  '/settings': 'Configuración',
+  '/lab': 'Laboratorio IA',
+};
+
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, profile, signOut } = useAuthStore();
   const { business, fetchBusiness } = useBusinessStore();
+  const { pendingRequests, fetchPendingRequests } = useAppointmentStore();
   const location = useLocation();
   const navigate = useNavigate();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      fetchBusiness();
-    }
-  }, [user, fetchBusiness]);
+    if (user) { fetchBusiness(); fetchPendingRequests(); }
+  }, [user, fetchBusiness, fetchPendingRequests]);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(fetchPendingRequests, 15000);
+    return () => clearInterval(interval);
+  }, [user, fetchPendingRequests]);
 
   const handleLogout = async () => {
+    setMoreOpen(false);
     await signOut();
     navigate('/login');
   };
 
-  interface NavItem {
-    path: string;
-    label: string;
-    icon: any;
-    highlight?: boolean;
-  }
-
-  const navItems: NavItem[] = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/assistant', label: 'Recepcionista IA', icon: Sparkles },
-    { path: '/calendar', label: 'Agenda', icon: CalendarIcon },
-    { path: '/customers', label: 'Clientes', icon: Users },
-    { path: '/services', label: 'Servicios', icon: Scissors },
-    { path: '/statistics', label: 'Estadísticas', icon: BarChart3 },
-    { path: '/settings', label: 'Ajustes', icon: Settings },
-    { path: '/lab', label: 'Laboratorio IA', icon: Terminal },
-  ];
-
+  const sectionName = SECTION_TITLES[location.pathname] || 'Inicio';
   const businessName = business?.nombre || 'Mi Barbería';
+
+  const sidebarNav: (NavItem & { highlight?: boolean })[] = [
+    ...MAIN_NAV,
+    ...MORE_NAV,
+  ];
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#F5F5F7]">
-      {/* Sidebar - Desktop (hidden on mobile) */}
+      {/* ─── DESKTOP SIDEBAR ─── */}
       <aside className="hidden md:flex flex-col w-72 bg-[#111111] text-white p-6 border-r border-neutral-800">
-        {/* Business Brand Header */}
         <div className="flex items-center gap-4 mb-10 pb-6 border-b border-neutral-800">
           {business?.logo_url ? (
-            <img 
-              src={business.logo_url} 
-              alt={businessName} 
+            <img
+              src={business.logo_url}
+              alt={businessName}
               className="w-12 h-12 rounded-xl object-cover border-2 border-gold"
             />
           ) : (
@@ -79,12 +110,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 space-y-2">
-          {navItems.map((item) => {
+          {sidebarNav.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
-            
+            const badgeCount = item.path === '/booking-requests' ? pendingRequests.length : 0;
             return (
               <Link
                 key={item.path}
@@ -98,13 +128,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 }`}
               >
                 <Icon className={`w-6 h-6 ${item.highlight ? 'text-black' : isActive ? 'text-gold' : ''}`} />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {badgeCount > 0 && (
+                  <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {badgeCount}
+                  </span>
+                )}
               </Link>
             );
           })}
         </nav>
 
-        {/* Footer/Logout */}
         <div className="pt-6 border-t border-neutral-800">
           <div className="flex items-center gap-3 mb-4 px-2">
             <div className="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center text-white font-bold">
@@ -125,85 +159,182 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </aside>
 
-      {/* Main Panel */}
-      <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-0">
-        {/* Top bar - Mobile & Desktop Header */}
-        <header className="bg-white border-b border-neutral-200 px-6 py-4 md:py-5 flex items-center justify-between sticky top-0 z-40">
-          <div className="flex items-center gap-3 md:hidden">
+      {/* ─── MAIN PANEL ─── */}
+      <div className="flex-1 flex flex-col min-w-0" style={{ paddingBottom: 'max(72px, env(safe-area-inset-bottom, 72px))' }}>
+        {/* Mobile Header */}
+        <header className="md:hidden bg-white border-b border-neutral-200 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {business?.logo_url ? (
-              <img 
-                src={business.logo_url} 
-                alt={businessName} 
-                className="w-10 h-10 rounded-lg object-cover border border-gold"
-              />
+              <img src={business.logo_url} alt="" className="w-8 h-8 rounded-lg object-cover border border-gold shrink-0" />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-gold text-black flex items-center justify-center font-bold text-lg">
+              <div className="w-8 h-8 rounded-lg bg-gold text-black flex items-center justify-center font-bold text-sm shrink-0">
                 {businessName.slice(0, 2).toUpperCase()}
               </div>
             )}
-            <h1 className="text-lg font-bold text-black tracking-tight line-clamp-1">{businessName}</h1>
+            <div className="min-w-0">
+              <p className="text-xs text-neutral-400 m-0 font-medium leading-tight">{businessName}</p>
+              <h1 className="text-sm font-bold text-black m-0 leading-tight truncate">{sectionName}</h1>
+            </div>
           </div>
-          
-          <div className="hidden md:flex items-center gap-2">
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/new-appointment')}
+              className="bg-gold hover:bg-gold-dark text-black p-2 rounded-lg transition-colors"
+              aria-label="Nueva cita"
+            >
+              <PlusCircle className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
+              aria-label="Perfil"
+            >
+              <UserCircle className="w-5 h-5 text-neutral-600" />
+            </button>
+          </div>
+        </header>
+
+        {/* Desktop Header */}
+        <header className="hidden md:flex bg-white border-b border-neutral-200 px-6 py-4 md:py-5 items-center justify-between sticky top-0 z-40">
+          <div className="flex items-center gap-2">
             <span className="text-neutral-500 font-medium">Panel de Gestión</span>
             <span className="text-neutral-300">/</span>
             <span className="text-black font-semibold">
-              {navItems.find(item => item.path === location.pathname)?.label || 'Inicio'}
+              {sectionName}
             </span>
           </div>
-
           <div className="flex items-center gap-3">
-            {/* Quick WhatsApp Share option or quick install info */}
-            <span className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               WhatsApp Activo
             </span>
-            
-            {/* Giant Easy Action Button */}
             {location.pathname !== '/new-appointment' && (
               <button
                 onClick={() => navigate('/new-appointment')}
                 className="bg-gold hover:bg-gold-dark text-black font-bold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 shadow-sm transition-all border border-gold"
               >
                 <PlusCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Nueva Cita</span>
+                <span>Nueva Cita</span>
               </button>
             )}
           </div>
         </header>
 
-        {/* Content Body */}
+        {/* Content */}
         <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto overflow-y-auto">
           {children}
         </main>
       </div>
 
-      {/* Bottom Navigation - Mobile only (scrollable when items overflow) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 py-2 flex overflow-x-auto items-center z-50 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]" style={{paddingBottom: "max(8px, env(safe-area-inset-bottom, 8px))"}}>
-        {navItems.map((item) => {
+      {/* ─── MOBILE BOTTOM NAV ─── */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-50 flex items-center justify-around shadow-[0_-4px_12px_rgba(0,0,0,0.08)]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        {MAIN_NAV.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
-          
+          const badgeCount = item.path === '/booking-requests' ? pendingRequests.length : 0;
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center gap-0.5 justify-center flex-shrink-0 py-1 px-3 rounded-lg text-center transition-all ${
-                item.highlight
-                  ? 'text-gold font-bold scale-110'
-                  : isActive
-                    ? 'text-black font-bold'
-                    : 'text-neutral-400 hover:text-neutral-600'
+              className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 flex-1 transition-all relative ${
+                isActive ? 'text-black' : 'text-neutral-400'
               }`}
             >
-              <div className={`p-1 rounded-full ${item.highlight ? 'bg-black text-gold shadow-md' : ''}`}>
-                <Icon className="w-6 h-6" />
+              <div className={`p-1 rounded-lg ${isActive ? 'bg-gold/10' : ''} relative`}>
+                <Icon className={`w-5 h-5 ${isActive ? 'text-gold' : ''}`} />
+                {badgeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] font-black px-1 rounded-full min-w-[14px] text-center leading-4">
+                    {badgeCount}
+                  </span>
+                )}
               </div>
-              <span className="text-[10px] tracking-tight whitespace-nowrap">{item.label}</span>
+              <span className={`text-[10px] font-semibold leading-tight ${isActive ? 'text-black' : 'text-neutral-400'}`}>
+                {item.label}
+              </span>
+              {isActive && <div className="w-5 h-0.5 bg-gold rounded-full mt-0.5" />}
             </Link>
           );
         })}
+
+        {/* Más button */}
+        <button
+          onClick={() => setMoreOpen(true)}
+          className="flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 flex-1 text-neutral-400 transition-all"
+        >
+          <div className="p-1 rounded-lg">
+            <MoreHorizontal className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] font-semibold leading-tight">Más</span>
+        </button>
       </nav>
+
+      {/* ─── MÁS BOTTOM SHEET ─── */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMoreOpen(false)} />
+          {/* Sheet */}
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slide-up overflow-hidden"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 rounded-full bg-neutral-300" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pb-3 border-b border-neutral-100">
+              <h2 className="text-lg font-bold text-black m-0">Más opciones</h2>
+              <button onClick={() => setMoreOpen(false)} className="p-1 hover:bg-neutral-100 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-neutral-500" />
+              </button>
+            </div>
+
+            {/* Items */}
+            <div className="p-4 space-y-1 max-h-[60vh] overflow-y-auto">
+              {MORE_NAV.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                const badgeCount = item.path === '/booking-requests' ? pendingRequests.length : 0;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex items-center gap-4 px-4 py-3.5 rounded-xl text-base font-semibold transition-all ${
+                      isActive ? 'bg-gold/10 text-gold-dark' : 'text-neutral-700 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-gold' : 'text-neutral-400'}`} />
+                    <span className="flex-1">{item.label}</span>
+                    {badgeCount > 0 && (
+                      <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                        {badgeCount}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Logout */}
+            <div className="border-t border-neutral-100 p-4">
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-4 w-full px-4 py-3.5 rounded-xl text-base font-semibold text-red-600 hover:bg-red-50 transition-all"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Cerrar Sesión</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

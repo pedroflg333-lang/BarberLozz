@@ -14,6 +14,8 @@ import { Customers } from './pages/Customers';
 import { Services } from './pages/Services';
 import { Settings } from './pages/Settings';
 import { Statistics } from './pages/Statistics';
+import { BookingRequests } from './pages/BookingRequests';
+import { PublicBooking } from './pages/PublicBooking';
 import { Scissors } from 'lucide-react';
 
 // Protected Route Wrapper
@@ -85,6 +87,9 @@ function App() {
           <Route path="/recovery" element={<Recovery />} />
         </Route>
 
+        {/* Public booking page (no auth, no Layout) */}
+        <Route path="/book/:slug" element={<PublicBooking />} />
+
         {/* Protected SaaS application screens */}
         <Route element={<ProtectedRoutes />}>
           <Route path="/dashboard" element={<Dashboard />} />
@@ -94,6 +99,7 @@ function App() {
           <Route path="/new-appointment" element={<NewAppointment />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/services" element={<Services />} />
+          <Route path="/booking-requests" element={<BookingRequests />} />
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/settings" element={<Settings />} />
           

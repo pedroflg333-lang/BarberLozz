@@ -60,7 +60,7 @@ export interface Appointment {
   fecha: string; // YYYY-MM-DD
   hora: string;  // HH:MM
   servicio_id: string;
-  estado: 'pending' | 'completed' | 'cancelled';
+  estado: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'cancelled';
   origen: 'MANUAL' | 'IA' | 'WHATSAPP' | 'WEB';
   notes: string | null;
   price_charged: number;

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { backendApi } from '../services/backendApi';
+import { BACKEND_URL } from '../config/backend';
 import type { Conversation, WhatsAppMessage } from '../types';
 import { mockConversations, mockWhatsAppMessages } from '../services/mockData';
 import { useAuthStore } from './authStore';
@@ -157,7 +158,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Use backend proxy for writes (bypasses RLS)
     if (backendApi.isAvailable()) {
       try {
-        const res = await fetch(`http://localhost:4000/api/conversations/${conversationId}/messages`, {
+        const res = await fetch(`${BACKEND_URL}/api/conversations/${conversationId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ direction: 'outgoing', content })
@@ -260,7 +261,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Use backend proxy (bypasses RLS)
     if (isUUID(businessId) && backendApi.isAvailable()) {
       try {
-        const res = await fetch(`http://localhost:4000/api/conversations/${conversationId}`, {
+        const res = await fetch(`${BACKEND_URL}/api/conversations/${conversationId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ai_enabled: false, status: 'human_needed' })
@@ -313,7 +314,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Use backend proxy (bypasses RLS)
     if (isUUID(businessId) && backendApi.isAvailable()) {
       try {
-        const res = await fetch(`http://localhost:4000/api/conversations/${conversationId}`, {
+        const res = await fetch(`${BACKEND_URL}/api/conversations/${conversationId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ai_enabled: true, status: 'ai_resolved' })

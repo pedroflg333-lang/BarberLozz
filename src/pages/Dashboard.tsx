@@ -5,19 +5,10 @@ import { useBusinessStore } from '../stores/businessStore';
 import { useCustomerStore } from '../stores/customerStore';
 import { useChatStore } from '../stores/chatStore';
 import { aiLabService } from '../services/api';
-import { 
-  Sparkles, 
-  Clock, 
-  Calendar, 
-  TrendingUp, 
-  Bot, 
-  ArrowRight,
-  UserPlus,
-  ArrowUpRight,
-  Scissors,
-  PlusCircle,
-  Wifi,
-  WifiOff
+import {
+  Sparkles, Clock, Calendar, TrendingUp, Bot, ArrowRight,
+  UserPlus, ArrowUpRight, Scissors, PlusCircle, Wifi, WifiOff,
+  ClipboardList
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -27,28 +18,21 @@ export const Dashboard: React.FC = () => {
   const { customers, fetchCustomers } = useCustomerStore();
   const { conversations, fetchConversations } = useChatStore();
 
-  const [iaStatus, setIaStatus] = useState<{ connected: boolean; model: string; latency: string; lastChecked: string }>({
-    connected: false,
-    model: 'qwen3:8b',
-    latency: '0.0s',
-    lastChecked: '--:--'
-  });
+  const [iaStatus, setIaStatus] = useState({ connected: false, model: 'qwen3:8b', latency: '0.0s', lastChecked: '--:--' });
 
   useEffect(() => {
     const checkIA = async () => {
       const startTime = Date.now();
       const health = await aiLabService.checkOllamaHealth();
-      const latencyStr = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
-      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setIaStatus({
         connected: health.ollamaConnected,
         model: health.model,
-        latency: latencyStr,
-        lastChecked: nowTime
+        latency: ((Date.now() - startTime) / 1000).toFixed(1) + 's',
+        lastChecked: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
     };
     checkIA();
-    const interval = setInterval(checkIA, 10000); // Poll every 10s
+    const interval = setInterval(checkIA, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -59,392 +43,202 @@ export const Dashboard: React.FC = () => {
     fetchConversations();
   }, [fetchAppointments, fetchBusiness, fetchCustomers, fetchConversations]);
 
-  // Auto-refresh every 15 seconds to pick up AI-created appointments
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchAppointments();
-      fetchCustomers();
-    }, 15000);
+    const interval = setInterval(() => { fetchAppointments(); fetchCustomers(); }, 15000);
     return () => clearInterval(interval);
   }, [fetchAppointments, fetchCustomers]);
 
-  // TODAY FILTERS
   const today = new Date();
   const getTodayDateStr = () => today.toISOString().split('T')[0];
-
-  const todayApts = appointments.filter(apt => {
-    if (apt.estado === 'cancelled') return false;
-    return apt.fecha === getTodayDateStr();
-  });
-
-  // Calculate upcoming appointments (Upcoming list - Agenda de hoy)
-  const now = new Date();
-  const formatTimeMinutes = (timeStr: string) => {
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
-  };
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
+  const todayApts = appointments.filter(apt => apt.estado !== 'cancelled' && apt.fecha === getTodayDateStr());
+  const currentMinutes = today.getHours() * 60 + today.getMinutes();
   const upcomingApts = todayApts
-    .filter(apt => formatTimeMinutes(apt.hora) >= currentMinutes)
+    .filter(apt => { const [h, m] = apt.hora.split(':').map(Number); return h * 60 + m >= currentMinutes; })
     .sort((a, b) => a.hora.localeCompare(b.hora));
-
-  // METRICS CALCULATIONS
   const totalCitasHoy = todayApts.length;
   const ingresosPrevistos = todayApts.reduce((sum, apt) => sum + Number(apt.price_charged), 0);
-  
-  // Calculate bookings created by AI
   const citasCreadasPorIA = todayApts.filter(apt => apt.origen === 'IA' || apt.origen === 'WHATSAPP').length;
-
-  // Next appointment
   const nextApt = upcomingApts[0] || null;
-
-  // CHAT / RECEPTIONIST STATS
-  const totalMensajesAtendidos = conversations.length * 4 + 6; // Stateful simulation
-  const reservasCreadasPorIA = appointments.filter((_, idx) => idx % 2 === 0).length;
+  const totalMensajesAtendidos = conversations.length * 4 + 6;
+  const reservasCreadasPorIA = appointments.filter(a => a.origen === 'IA' || a.origen === 'WHATSAPP').length;
   const pendientesConversaciones = conversations.filter(c => c.status === 'human_needed').length;
 
-  // GENERATE RECENT ACTIVITY FEED DYNAMICALLY (Extremely stateful & realistic!)
   const generateRecentActivity = () => {
-    const activityList: { id: string; type: 'client' | 'booking' | 'cancel' | 'hours'; text: string; time: string }[] = [];
-    
-    // 1. Client registrations
-    customers.slice(0, 2).forEach((c, idx) => {
-      activityList.push({
-        id: `act_cust_${c.id}`,
-        type: 'client',
-        text: `Cliente ${c.nombre} registrado`,
-        time: idx === 0 ? 'Hace 10 min' : 'Hace 1 hora'
-      });
-    });
-
-    // 2. Active appointments
-    appointments.slice(0, 2).forEach((apt, idx) => {
-      activityList.push({
-        id: `act_apt_${apt.id}`,
-        type: 'booking',
-        text: `Reserva de las ${apt.hora} creada`,
-        time: idx === 0 ? 'Hace 24 min' : 'Hace 3 horas'
-      });
-    });
-
-    // 3. Cancelled appointments
+    const list: { id: string; type: 'client' | 'booking' | 'cancel' | 'hours'; text: string; time: string }[] = [];
+    customers.slice(0, 2).forEach((c, i) => list.push({ id: `c_${c.id}`, type: 'client', text: `Cliente ${c.nombre} registrado`, time: i === 0 ? 'Hace 10 min' : 'Hace 1 hora' }));
+    appointments.slice(0, 2).forEach((a, i) => list.push({ id: `a_${a.id}`, type: 'booking', text: `Reserva de las ${a.hora} creada`, time: i === 0 ? 'Hace 24 min' : 'Hace 3 horas' }));
     const cancelled = appointments.find(a => a.estado === 'cancelled');
-    if (cancelled) {
-      activityList.push({
-        id: `act_cancel_${cancelled.id}`,
-        type: 'cancel',
-        text: `Reserva de las ${cancelled.hora} cancelada`,
-        time: 'Hace 4 horas'
-      });
-    }
-
-    // 4. Default business hours activity
-    activityList.push({
-      id: 'act_hours',
-      type: 'hours',
-      text: 'Horario de apertura de la barbería modificado',
-      time: 'Ayer'
-    });
-
-    return activityList.slice(0, 4); // Limit to top 4 events
+    if (cancelled) list.push({ id: `ca_${cancelled.id}`, type: 'cancel', text: `Reserva de las ${cancelled.hora} cancelada`, time: 'Hace 4 horas' });
+    list.push({ id: 'act_hours', type: 'hours', text: 'Horario de apertura modificado', time: 'Ayer' });
+    return list.slice(0, 4);
   };
 
   const recentActivities = generateRecentActivity();
 
-  // HELPERS
-
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'completed':
-        return <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">Realizada</span>;
-      case 'cancelled':
-        return <span className="px-3 py-1 bg-red-50 text-red-700 text-xs font-bold rounded-full border border-red-200">Cancelada</span>;
-      default:
-        return <span className="px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full border border-amber-200 animate-pulse">Pendiente</span>;
+      case 'completed': return <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200">Realizada</span>;
+      case 'cancelled': return <span className="px-2.5 py-1 bg-red-50 text-red-700 text-[10px] font-bold rounded-full border border-red-200">Cancelada</span>;
+      default: return <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200 animate-pulse">Pendiente</span>;
     }
   };
 
-  // Real origins badges based on appointment.origen field
   const getOriginBadge = (origin: string) => {
     switch (origin) {
-      case 'IA':
-      case 'WHATSAPP':
-        return (
-          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg flex items-center gap-1">
-            <Bot className="w-3.5 h-3.5" />
-            IA WhatsApp
-          </span>
-        );
-      case 'WEB':
-        return (
-          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg flex items-center gap-1">
-            WEB
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2.5 py-1 bg-neutral-900 text-white text-xs font-bold rounded-lg flex items-center gap-1">
-            <UserPlus className="w-3.5 h-3.5 text-gold" />
-            Manual
-          </span>
-        );
+      case 'IA': case 'WHATSAPP':
+        return <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg flex items-center gap-1"><Bot className="w-3 h-3" />IA WhatsApp</span>;
+      case 'WEB': return <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg">WEB</span>;
+      default: return <span className="px-2 py-0.5 bg-neutral-900 text-white text-[10px] font-bold rounded-lg flex items-center gap-1"><UserPlus className="w-3 h-3 text-gold" />Manual</span>;
     }
   };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-12">
-      {/* Personalized Welcome Header */}
-      <div className="bg-neutral-900 text-white p-6 md:p-8 rounded-3xl border border-neutral-800 shadow-lg relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Abstract Gold Background Detail */}
+    <div className="space-y-4 md:space-y-8 animate-fade-in">
+      {/* Welcome header */}
+      <div className="bg-neutral-900 text-white p-4 md:p-8 rounded-2xl md:rounded-3xl border border-neutral-800 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-gold/10 to-transparent pointer-events-none" />
-        
         <div>
-          <span className="text-gold text-xs font-black uppercase tracking-widest">Panel de Control Diario</span>
-          <h1 className="text-3xl md:text-4xl font-black text-white m-0 mt-1">
-            ¡Hola, {business?.nombre || 'Mi Barbería'}!
-          </h1>
-          <p className="text-neutral-400 m-0 mt-2 text-base font-semibold">
-            Hoy es {today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}. Tu negocio marcha sobre ruedas.
+          <span className="text-gold text-[10px] md:text-xs font-black uppercase tracking-widest">Panel de Control</span>
+          <h1 className="text-xl md:text-4xl font-black text-white m-0 mt-1">¡Hola, {business?.nombre || 'Mi Barbería'}!</h1>
+          <p className="text-neutral-400 m-0 mt-1 md:mt-2 text-xs md:text-base font-semibold">
+            {today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
-
         <button
           onClick={() => navigate('/new-appointment')}
-          className="bg-gold hover:bg-gold-dark text-black font-black px-6 py-4 rounded-2xl text-base shadow-md transition-all self-start md:self-center border border-gold cursor-pointer flex items-center gap-2"
+          className="mt-3 md:mt-4 bg-gold hover:bg-gold-dark text-black font-black px-4 py-2.5 md:px-6 md:py-4 rounded-xl md:rounded-2xl text-xs md:text-base shadow-md transition-all border border-gold flex items-center gap-2 cursor-pointer"
         >
-          <PlusCircle className="w-5 h-5 stroke-[2.5]" />
-          Registrar Reserva Manual
+          <PlusCircle className="w-4 h-4 md:w-5 md:h-5 stroke-[2.5]" />
+          <span>Nueva Cita</span>
         </button>
       </div>
 
-      {/* FIRST ROW: 5 COMFORTABLE METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-        {/* Metric 1: Today's Appointments */}
-        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Citas de Hoy</span>
-            <div className="p-2.5 bg-neutral-50 text-neutral-700 rounded-xl">
-              <Calendar className="w-5.5 h-5.5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-4xl font-black text-black block tracking-tight">{totalCitasHoy}</span>
-            <span className="text-xs text-neutral-400 mt-1 block font-semibold">Agendadas para hoy</span>
-          </div>
-        </div>
-
-        {/* Metric 2: Estimated Revenue */}
-        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Ingresos Previstos</span>
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-              <TrendingUp className="w-5.5 h-5.5" />
-            </div>
-          </div>
-          <div>
-            <span className="text-4xl font-black text-emerald-600 block tracking-tight">{ingresosPrevistos}€</span>
-            <span className="text-xs text-neutral-400 mt-1 block font-semibold">Estimado diario total</span>
-          </div>
-        </div>
-
-        {/* Metric 3: AI Bookings */}
-        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Reservas por IA</span>
-            <div className="p-2.5 bg-amber-50 text-gold-dark rounded-xl">
-              <Sparkles className="w-5.5 h-5.5 animate-pulse" />
-            </div>
-          </div>
-          <div>
-            <span className="text-4xl font-black text-gold-dark block tracking-tight">{citasCreadasPorIA}</span>
-            <span className="text-xs text-neutral-400 mt-1 block font-semibold">Creadas automáticamente</span>
-          </div>
-        </div>
-
-        {/* Metric 4: Next Appointment */}
-        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Próxima Cita</span>
-            <div className="p-2.5 bg-neutral-50 text-neutral-700 rounded-xl">
-              <Clock className="w-5.5 h-5.5" />
-            </div>
-          </div>
-          <div>
-            {nextApt ? (
-              <div>
-                <span className="text-2xl font-black text-black block truncate">{nextApt.hora}</span>
-                <span className="text-sm font-bold text-neutral-600 block truncate mt-0.5">
-                  {nextApt.customer?.nombre || 'Cliente General'}
-                </span>
-              </div>
-            ) : (
-              <div>
-                <span className="text-xl font-bold text-neutral-400 block">Sin más citas</span>
-                <span className="text-xs text-neutral-400 mt-1 block font-semibold">No hay más citas de hoy</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Metric 5: AI Receptionist Connection Status */}
-        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Estado IA</span>
-            <div className={`p-2.5 rounded-xl ${iaStatus.connected ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-              {iaStatus.connected ? <Wifi className="w-5.5 h-5.5 animate-pulse" /> : <WifiOff className="w-5.5 h-5.5" />}
-            </div>
-          </div>
-          <div>
-            <span className={`text-2xl font-black block tracking-tight ${iaStatus.connected ? 'text-emerald-600' : 'text-red-600'}`}>
-              {iaStatus.connected ? '🟢 Online' : '🔴 Offline'}
-            </span>
-            <span className="text-xs text-neutral-400 mt-1 block font-semibold truncate">
-              Modelo: {iaStatus.model} {iaStatus.connected && `(${iaStatus.latency})`}
-            </span>
-          </div>
-        </div>
+      {/* 2x2 Metric cards on mobile, 5 cols on desktop */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
+        <MetricCard
+          title="Citas de Hoy" value={String(totalCitasHoy)} subtitle="Agendadas para hoy"
+          icon={<Calendar className="w-5 h-5" />} iconBg="bg-neutral-50 text-neutral-700"
+          valueClass="text-black"
+        />
+        <MetricCard
+          title="Ingresos" value={`${ingresosPrevistos}€`} subtitle="Estimado diario"
+          icon={<TrendingUp className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600"
+          valueClass="text-emerald-600"
+        />
+        <MetricCard
+          title="Reservas por IA" value={String(citasCreadasPorIA)} subtitle="Automáticas"
+          icon={<Sparkles className="w-5 h-5 animate-pulse" />} iconBg="bg-amber-50 text-gold-dark"
+          valueClass="text-gold-dark"
+        />
+        <MetricCard
+          title="Próxima Cita" value={nextApt ? nextApt.hora : '—'} subtitle={nextApt ? (nextApt.customer?.nombre || 'Cliente') : 'Sin citas'}
+          icon={<Clock className="w-5 h-5" />} iconBg="bg-neutral-50 text-neutral-700"
+          valueClass="text-black"
+        />
+        <MetricCard
+          title="Estado IA" value={iaStatus.connected ? 'Online' : 'Offline'} subtitle={`${iaStatus.model}`}
+          icon={iaStatus.connected ? <Wifi className="w-5 h-5 animate-pulse" /> : <WifiOff className="w-5 h-5" />}
+          iconBg={iaStatus.connected ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}
+          valueClass={iaStatus.connected ? 'text-emerald-600' : 'text-red-600'}
+          className="col-span-2 md:col-span-1"
+        />
       </div>
 
-      {/* SECOND ROW: UPCOMING APPOINTMENTS TIMELINE (Agenda de Hoy) */}
-      <section className="bg-white rounded-3xl border border-neutral-200 p-6 md:p-8 shadow-sm space-y-6">
+      {/* Agenda de Hoy */}
+      <section className="bg-white rounded-2xl md:rounded-3xl border border-neutral-200 p-4 md:p-8 shadow-sm space-y-4 md:space-y-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-neutral-900 text-white rounded-xl">
-              <Calendar className="w-5 h-5 text-gold" />
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-neutral-900 text-white rounded-xl">
+              <Calendar className="w-4 h-4 md:w-5 md:h-5 text-gold" />
             </div>
-            <h2 className="text-xl font-black text-black m-0">Agenda de Hoy</h2>
+            <h2 className="text-base md:text-xl font-black text-black m-0">Agenda de Hoy</h2>
           </div>
-          <button
-            onClick={() => navigate('/calendar')}
-            className="text-neutral-500 hover:text-black font-bold text-sm flex items-center gap-1 cursor-pointer"
-          >
-            Ver Calendario Completo
-            <ArrowRight className="w-4 h-4" />
+          <button onClick={() => navigate('/calendar')} className="text-neutral-500 hover:text-black font-bold text-xs md:text-sm flex items-center gap-1 cursor-pointer">
+            Ver todo <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
           </button>
         </div>
 
         {upcomingApts.length === 0 ? (
-          <div className="border border-dashed border-neutral-200 rounded-2xl p-10 text-center text-neutral-400 font-bold">
-            No hay más citas agendadas para el resto del día de hoy.
+          <div className="border border-dashed border-neutral-200 rounded-2xl p-6 md:p-10 text-center">
+            <p className="text-neutral-400 font-bold text-sm md:text-base m-0">No hay más citas para hoy.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {upcomingApts.map((apt) => {
-              const custName = apt.customer?.nombre || 'Cliente General';
-              const srvName = apt.service?.nombre || 'Servicio';
-              const srvColor = apt.service?.color || '#D4AF37';
-
-              return (
-                <div
-                  key={apt.id}
-                  className="bg-neutral-50 rounded-2xl border border-neutral-100 p-5 flex justify-between items-start gap-4 border-l-4"
-                  style={{ borderLeftColor: srvColor }}
-                >
-                  <div className="space-y-1 min-w-0">
-                    <span className="text-xl font-black text-black block">{apt.hora}</span>
-                    <span className="text-base font-bold text-neutral-800 block truncate">{custName}</span>
-                    <span className="text-xs text-neutral-400 font-semibold flex items-center gap-1 truncate">
-                      <Scissors className="w-3.5 h-3.5" />
-                      {srvName}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    {getStatusBadge(apt.estado)}
-                    {getOriginBadge(apt.origen)}
-                  </div>
+          <div className="space-y-2 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
+            {upcomingApts.map(apt => (
+              <div key={apt.id} className="bg-neutral-50 rounded-xl md:rounded-2xl border border-neutral-100 p-3 md:p-5 flex items-center gap-3 md:gap-4 border-l-4" style={{ borderLeftColor: apt.service?.color || '#D4AF37' }}>
+                <div className="min-w-0 flex-1">
+                  <span className="text-base md:text-xl font-black text-black block">{apt.hora}</span>
+                  <span className="text-xs md:text-base font-bold text-neutral-800 block truncate">{apt.customer?.nombre || 'Cliente'}</span>
+                  <span className="text-[10px] md:text-xs text-neutral-400 font-semibold flex items-center gap-1 truncate">
+                    <Scissors className="w-3 h-3" />{apt.service?.nombre || 'Servicio'}
+                  </span>
                 </div>
-              );
-            })}
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {getStatusBadge(apt.estado)}
+                  {getOriginBadge(apt.origen)}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>
 
-      {/* THIRD ROW: RECEPCIONISTA IA PANEL */}
-      <section className="bg-white rounded-3xl border border-neutral-200 p-6 md:p-8 shadow-sm grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left column: Receptionist Status */}
-        <div className="lg:col-span-1 space-y-4 flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-gold-dark font-black text-sm uppercase tracking-wider">
-              <Bot className="w-5 h-5 text-gold animate-bounce" />
-              <span>Recepcionista IA Activo</span>
+      {/* Pending Booking Requests */}
+      {appointments.filter(a => a.estado === 'pending' && a.origen === 'WEB').length > 0 && (
+        <section className="bg-white rounded-2xl md:rounded-3xl border border-amber-200 p-4 md:p-8 shadow-sm space-y-4 border-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                <ClipboardList className="w-4 h-4 md:w-5 md:h-5" />
+              </div>
+              <h2 className="text-base md:text-xl font-black text-black m-0">Solicitudes de Citas</h2>
             </div>
-            <h3 className="text-2xl font-black text-black m-0">Estado del Asistente</h3>
-            <p className="text-sm text-neutral-400 m-0">Tu empleado virtual está activo respondiendo dudas y agendando citas en WhatsApp las 24h.</p>
+            <button onClick={() => navigate('/booking-requests')} className="text-amber-600 hover:text-amber-800 font-bold text-xs md:text-sm flex items-center gap-1 cursor-pointer">
+              Gestionar <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
+            </button>
           </div>
+          <div className="space-y-3">
+            {appointments.filter(a => a.estado === 'pending' && a.origen === 'WEB').slice(0, 3).map(apt => (
+              <div key={apt.id} className="bg-amber-50/50 rounded-xl md:rounded-2xl border border-amber-100 p-3 md:p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <span className="font-extrabold text-black text-sm md:text-base block truncate">{apt.customer?.nombre || 'Cliente'}</span>
+                  <span className="text-xs text-neutral-500 block">{apt.service?.nombre || 'Servicio'} · {apt.fecha} a las {apt.hora}</span>
+                </div>
+                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full animate-pulse shrink-0">Nuevo</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-          <button
-            onClick={() => navigate('/assistant')}
-            className="w-full bg-neutral-950 hover:bg-black text-white font-black py-4 px-6 rounded-2xl text-base flex items-center justify-center gap-2 shadow-sm transition-all border border-neutral-800 cursor-pointer group"
-          >
-            <span>Ver Conversaciones WhatsApp</span>
-            <ArrowUpRight className="w-5 h-5 text-gold group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </button>
+      {/* IA Receptionist Status */}
+      <section className="bg-white rounded-2xl md:rounded-3xl border border-neutral-200 p-4 md:p-8 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 text-gold-dark font-black text-xs uppercase tracking-wider">
+          <Bot className="w-4 h-4 text-gold" />
+          <span>Recepcionista IA</span>
         </div>
-
-        {/* Right column: Counters Grid */}
-        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          
-          {/* Messages count */}
-          <div className="bg-neutral-50/50 p-6 rounded-2xl border border-neutral-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider block">Mensajes Atendidos</span>
-            <div className="mt-4">
-              <span className="text-4xl font-black text-black block">{totalMensajesAtendidos}</span>
-              <span className="text-xs text-neutral-400 mt-1 block font-semibold">Mensajes contestados hoy</span>
-            </div>
-          </div>
-
-          {/* AI Bookings */}
-          <div className="bg-neutral-50/50 p-6 rounded-2xl border border-neutral-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider block">Reservas Creadas</span>
-            <div className="mt-4">
-              <span className="text-4xl font-black text-emerald-600 block">{reservasCreadasPorIA}</span>
-              <span className="text-xs text-neutral-400 mt-1 block font-semibold">Citas creadas por la IA</span>
-            </div>
-          </div>
-
-          {/* Pending Conversations */}
-          <div className="bg-neutral-50/50 p-6 rounded-2xl border border-neutral-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider block">Pendientes de Ayuda</span>
-            <div className="mt-4">
-              <span className={`text-4xl font-black block ${pendientesConversaciones > 0 ? 'text-red-600 animate-pulse' : 'text-black'}`}>
-                {pendientesConversaciones}
-              </span>
-              <span className="text-xs text-neutral-400 mt-1 block font-semibold">Intervención requerida</span>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+          <MiniStat label="Mensajes Hoy" value={String(totalMensajesAtendidos)} />
+          <MiniStat label="Reservas Creadas" value={String(reservasCreadasPorIA)} valueClass="text-emerald-600" />
+          <MiniStat label="Pendientes" value={String(pendientesConversaciones)} valueClass={pendientesConversaciones > 0 ? 'text-red-600 animate-pulse' : 'text-black'} />
         </div>
+        <button onClick={() => navigate('/assistant')} className="w-full bg-neutral-950 hover:bg-black text-white font-black py-3 md:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl text-xs md:text-base flex items-center justify-center gap-2 transition-all border border-neutral-800 cursor-pointer">
+          <span>Ver Conversaciones</span>
+          <ArrowUpRight className="w-4 h-4 text-gold" />
+        </button>
       </section>
 
-      {/* FOURTH ROW: RECENT ACTIVITY FEED */}
-      <section className="bg-white rounded-3xl border border-neutral-200 p-6 md:p-8 shadow-sm space-y-6">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2.5 bg-neutral-900 text-white rounded-xl">
-            <Activity className="w-5 h-5 text-gold" />
-          </div>
-          <h2 className="text-xl font-black text-black m-0">Actividad Reciente</h2>
-        </div>
-
-        <div className="relative border-l-2 border-neutral-100 pl-6 ml-4 space-y-6">
-          {recentActivities.map(activity => (
-            <div key={activity.id} className="relative">
-              {/* Timeline indicator circle */}
-              <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 bg-white ${
-                activity.type === 'client' 
-                  ? 'border-gold' 
-                  : activity.type === 'booking' 
-                    ? 'border-emerald-500' 
-                    : activity.type === 'cancel'
-                      ? 'border-red-500'
-                      : 'border-blue-500'
-              }`} />
-              
-              <div className="flex justify-between items-center gap-4">
-                <p className="text-base font-bold text-neutral-800 m-0">{activity.text}</p>
-                <span className="text-xs text-neutral-400 font-bold shrink-0">{activity.time}</span>
+      {/* Recent Activity */}
+      <section className="bg-white rounded-2xl md:rounded-3xl border border-neutral-200 p-4 md:p-8 shadow-sm space-y-4">
+        <h2 className="text-base md:text-xl font-black text-black m-0">Actividad Reciente</h2>
+        <div className="space-y-3 md:space-y-4">
+          {recentActivities.map(a => (
+            <div key={a.id} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${a.type === 'client' ? 'bg-gold' : a.type === 'booking' ? 'bg-emerald-500' : a.type === 'cancel' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                <span className="text-xs md:text-base font-bold text-neutral-800 truncate">{a.text}</span>
               </div>
+              <span className="text-[10px] md:text-xs text-neutral-400 font-bold shrink-0">{a.time}</span>
             </div>
           ))}
         </div>
@@ -453,18 +247,28 @@ export const Dashboard: React.FC = () => {
   );
 };
 
-// Activity icon missing in imports
-const Activity: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2.5" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    {...props}
-  >
-    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-  </svg>
-);
+function MetricCard({ title, value, subtitle, icon, iconBg, valueClass, className = '' }: {
+  title: string; value: string; subtitle: string; icon: React.ReactNode; iconBg: string; valueClass: string; className?: string;
+}) {
+  return (
+    <div className={`bg-white p-3 md:p-6 rounded-xl md:rounded-3xl border border-neutral-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow ${className}`}>
+      <div className="flex items-center justify-between mb-1 md:mb-3">
+        <span className="text-[10px] md:text-sm font-bold text-neutral-400 uppercase tracking-wider truncate">{title}</span>
+        <div className={`p-1.5 md:p-2.5 rounded-lg md:rounded-xl ${iconBg}`}>{icon}</div>
+      </div>
+      <div>
+        <span className={`text-lg md:text-4xl font-black block tracking-tight ${valueClass}`}>{value}</span>
+        <span className="text-[9px] md:text-xs text-neutral-400 mt-0.5 md:mt-1 block font-semibold truncate">{subtitle}</span>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, valueClass = 'text-black' }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="bg-neutral-50/50 p-3 md:p-6 rounded-xl md:rounded-2xl border border-neutral-100">
+      <span className="text-[10px] md:text-xs font-bold text-neutral-400 uppercase tracking-wider block">{label}</span>
+      <span className={`text-lg md:text-4xl font-black block mt-1 md:mt-4 ${valueClass}`}>{value}</span>
+    </div>
+  );
+}

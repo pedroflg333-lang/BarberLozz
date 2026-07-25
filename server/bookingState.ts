@@ -268,7 +268,8 @@ const AFFIRMATIVE_PHRASES = [
   'perfecto', 'resérvala', 'reservala', 'confirmo',
   'adelante', 'dale', 'sí por favor', 'si por favor',
   'claro', 'por supuesto', 'reserva', 'confirmar',
-  'agendalo', 'agéndalo', 'agendala', 'agéndala'
+  'agendalo', 'agéndalo', 'agendala', 'agéndala',
+  'vale perfecto', 'perfecto vale', 'si perfecto', 'si vale', 'ok vale'
 ];
 
 export function isConfirmation(message: string): boolean {
@@ -303,6 +304,9 @@ export function isNewBookingRequest(message: string): boolean {
   if (/\botra\s+cita\b/.test(msg)) return true;
   if (/\bnuev[oa]\s+(cita|reserva)\b/.test(msg)) return true;
   if (/\b(otra|nueva)\s+(cita|reserva|vez)\b/.test(msg)) return true;
+  if (/\bquiero\s+(una\s+)?(cita|reserva(r)?)\b/.test(msg)) return true;
+  if (/\bnecesito\s+(una\s+)?(cita|reserva)\b/.test(msg)) return true;
+  if (/\b(agenda|agendar|programa|programar)\s+(una\s+)?(cita|reserva)\b/.test(msg)) return true;
   return false;
 }
 

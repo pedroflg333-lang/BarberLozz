@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../services/supabase';
+import { BACKEND_URL } from '../config/backend';
 import type { Business } from '../types';
 import { useAuthStore } from './authStore';
 
@@ -111,7 +112,7 @@ export const useBusinessStore = create<BusinessState>((set, get) => ({
       try {
         const current = get().business;
         const merged = { ...current, ...updated };
-        await fetch('http://localhost:4000/api/settings', {
+        await fetch(`${BACKEND_URL}/api/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

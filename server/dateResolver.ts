@@ -79,7 +79,10 @@ export function resolveAppointmentDate(
     };
     const month = months[monthName];
     if (month) {
-      const result = new Date(year, month - 1, day);
+      let y = year;
+      const candidate = new Date(y, month - 1, day);
+      if (!explicitMatch[3] && candidate < refDate) y++;
+      const result = new Date(y, month - 1, day);
       if (result.getMonth() === month - 1) {
         const ds = formatDate(result, timezone);
         return { dateStr: ds, dayName: getDayName(result, timezone), label: `${ds} (${getDayName(result, timezone)})` };
@@ -122,24 +125,30 @@ export function resolveAppointmentDate(
     return { dateStr: ds, dayName: getDayName(d, timezone), label: `pasado mañana (${ds})` };
   }
 
-  if (msg.includes('mañana') || msg.includes('manana')) {
+  // "mañana" as "tomorrow" (standalone word, not "por la mañana" / "de la mañana")
+  const isTomorrow = (/\bmañana\b/.test(msg) || /\bmanana\b/.test(msg)) &&
+    !/por\s+(la\s+)?mañana/i.test(msg) && !/por\s+(la\s+)?manana/i.test(msg) &&
+    !/de\s+(la\s+)?mañana/i.test(msg) && !/de\s+(la\s+)?manana/i.test(msg);
+  if (isTomorrow) {
     const d = new Date(refDate);
     d.setDate(d.getDate() + 1);
     const ds = formatDate(d, timezone);
     return { dateStr: ds, dayName: getDayName(d, timezone), label: `mañana (${ds})` };
   }
 
-  if (msg.includes('hoy') || msg === 'hoy') {
+  if (/\bhoy\b/.test(msg)) {
     const ds = formatDate(refDate, timezone);
     return { dateStr: ds, dayName: getDayName(refDate, timezone), label: `hoy (${ds})` };
   }
 
   // --- Day-of-week expressions ---
 
+  // Match day names using word boundaries to avoid partial matches (e.g., "vie" in "viene")
   const mentionedDays: { name: string; index: number }[] = [];
   for (const [name, idx] of Object.entries(DAY_NAMES)) {
-    if (msg.includes(name)) {
-      mentionedDays.push({ name, index: idx });
+    const re = new RegExp('\\b' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (re.test(msg)) {
+      mentionedDays.push({ name: name.toLowerCase(), index: idx });
     }
   }
 
@@ -148,10 +157,13 @@ export function resolveAppointmentDate(
     const isNextWeek = /pr[oó]ximo|que viene|siguiente|pr[oó]xim[oa]/i.test(msg);
 
     if (isNextWeek) {
+      // Semantics: "[day] que viene" / "próximo [day]" → the immediate next occurrence of that day.
+      // If today IS that day, "próximo [day]" means 7 days from now (next week, not today).
+      // This is consistent with bare day names ("lunes" = next Monday from today).
+      // The "que viene" / "próximo" modifier does NOT add an extra week; it only labels the intent.
       const d = new Date(refDate);
       let daysUntil = day.index - getDayIndex(d, timezone);
       if (daysUntil <= 0) daysUntil += 7;
-      daysUntil += 7;
       d.setDate(d.getDate() + daysUntil);
       return { dateStr: formatDate(d, timezone), dayName: getDayName(d, timezone), label: `${day.name} próximo (${formatDate(d, timezone)})` };
     }
@@ -162,6 +174,11 @@ export function resolveAppointmentDate(
     let daysUntil = day.index - getDayIndex(d, timezone);
 
     if (isEste) {
+      // Map JS Sunday=0 to Mon-Sun week: Mon=0, Tue=1, ..., Sun=6
+      const monSun = (jsIdx: number) => jsIdx === 0 ? 6 : jsIdx - 1;
+      const todayMS = monSun(getDayIndex(d, timezone));
+      const targetMS = monSun(day.index);
+      daysUntil = targetMS - todayMS;
       if (daysUntil < 0) return null;
     } else {
       if (daysUntil <= 0) daysUntil += 7;
@@ -188,7 +205,8 @@ export function validateDayMatch(
   const actualDayIndex = getDayIndex(date, timezone);
 
   for (const [name, idx] of Object.entries(DAY_NAMES)) {
-    if (msg.includes(name)) {
+    const re = new RegExp('\\b' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (re.test(msg)) {
       return idx === actualDayIndex;
     }
   }
