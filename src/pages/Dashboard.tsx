@@ -5,6 +5,7 @@ import { useBusinessStore } from '../stores/businessStore';
 import { useCustomerStore } from '../stores/customerStore';
 import { useChatStore } from '../stores/chatStore';
 import { aiLabService } from '../services/api';
+import { Card, Badge, Button } from '../ui';
 import {
   Sparkles, Clock, Calendar, TrendingUp, Bot, ArrowRight,
   UserPlus, ArrowUpRight, Scissors, PlusCircle, Wifi, WifiOff,
@@ -77,18 +78,18 @@ export const Dashboard: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'completed': return <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200">Realizada</span>;
-      case 'cancelled': return <span className="px-2.5 py-1 bg-red-50 text-red-700 text-[10px] font-bold rounded-full border border-red-200">Cancelada</span>;
-      default: return <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200 animate-pulse">Pendiente</span>;
+      case 'completed': return <Badge variant="success">Realizada</Badge>;
+      case 'cancelled': return <Badge variant="error">Cancelada</Badge>;
+      default: return <Badge variant="warning" pulse>Pendiente</Badge>;
     }
   };
 
   const getOriginBadge = (origin: string) => {
     switch (origin) {
       case 'IA': case 'WHATSAPP':
-        return <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg flex items-center gap-1"><Bot className="w-3 h-3" />IA WhatsApp</span>;
-      case 'WEB': return <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg">WEB</span>;
-      default: return <span className="px-2 py-0.5 bg-neutral-900 text-white text-[10px] font-bold rounded-lg flex items-center gap-1"><UserPlus className="w-3 h-3 text-gold" />Manual</span>;
+        return <Badge variant="success" size="sm"><Bot className="w-3 h-3" />IA WhatsApp</Badge>;
+      case 'WEB': return <Badge variant="info" size="sm">WEB</Badge>;
+      default: return <Badge variant="neutral" size="sm"><UserPlus className="w-3 h-5 text-gold-dark" />Manual</Badge>;
     }
   };
 
@@ -104,13 +105,9 @@ export const Dashboard: React.FC = () => {
             {today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
-        <button
-          onClick={() => navigate('/new-appointment')}
-          className="mt-3 md:mt-4 bg-gold hover:bg-gold-dark text-black font-black px-4 py-2.5 md:px-6 md:py-4 rounded-xl md:rounded-2xl text-xs md:text-base shadow-md transition-all border border-gold flex items-center gap-2 cursor-pointer"
-        >
-          <PlusCircle className="w-4 h-4 md:w-5 md:h-5 stroke-[2.5]" />
-          <span>Nueva Cita</span>
-        </button>
+        <Button variant="secondary" size="lg" icon={<PlusCircle className="w-4 h-5 stroke-[2.5]" />} onClick={() => navigate('/new-appointment')} className="mt-3 md:mt-4 shadow-md">
+          Nueva Cita
+        </Button>
       </div>
 
       {/* 2x2 Metric cards on mobile, 5 cols on desktop */}
@@ -145,7 +142,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Agenda de Hoy */}
-      <section className="bg-white rounded-2xl md:rounded-3xl border border-neutral-200 p-4 md:p-8 shadow-sm space-y-4 md:space-y-6">
+      <Card padding="lg" className="space-y-4 md:space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-neutral-900 text-white rounded-xl">
@@ -181,11 +178,11 @@ export const Dashboard: React.FC = () => {
             ))}
           </div>
         )}
-      </section>
+      </Card>
 
       {/* Pending Booking Requests */}
       {appointments.filter(a => a.estado === 'pending' && a.origen === 'WEB').length > 0 && (
-        <section className="bg-white rounded-2xl md:rounded-3xl border border-amber-200 p-4 md:p-8 shadow-sm space-y-4 border-2">
+        <Card padding="lg" className="space-y-4 border-2 border-amber-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
@@ -208,11 +205,11 @@ export const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* IA Receptionist Status */}
-      <section className="bg-white rounded-2xl md:rounded-3xl border border-neutral-200 p-4 md:p-8 shadow-sm space-y-4">
+      <Card padding="lg" className="space-y-4">
         <div className="flex items-center gap-2 text-gold-dark font-black text-xs uppercase tracking-wider">
           <Bot className="w-4 h-4 text-gold" />
           <span>Recepcionista IA</span>
@@ -222,14 +219,13 @@ export const Dashboard: React.FC = () => {
           <MiniStat label="Reservas Creadas" value={String(reservasCreadasPorIA)} valueClass="text-emerald-600" />
           <MiniStat label="Pendientes" value={String(pendientesConversaciones)} valueClass={pendientesConversaciones > 0 ? 'text-red-600 animate-pulse' : 'text-black'} />
         </div>
-        <button onClick={() => navigate('/assistant')} className="w-full bg-neutral-950 hover:bg-black text-white font-black py-3 md:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl text-xs md:text-base flex items-center justify-center gap-2 transition-all border border-neutral-800 cursor-pointer">
-          <span>Ver Conversaciones</span>
-          <ArrowUpRight className="w-4 h-4 text-gold" />
-        </button>
-      </section>
+        <Button variant="primary" size="lg" icon={<ArrowUpRight className="w-4 h-5 text-gold" />} onClick={() => navigate('/assistant')} className="w-full bg-neutral-950 hover:bg-black border-neutral-800">
+          Ver Conversaciones
+        </Button>
+      </Card>
 
       {/* Recent Activity */}
-      <section className="bg-white rounded-2xl md:rounded-3xl border border-neutral-200 p-4 md:p-8 shadow-sm space-y-4">
+      <Card padding="lg" className="space-y-4">
         <h2 className="text-base md:text-xl font-black text-black m-0">Actividad Reciente</h2>
         <div className="space-y-3 md:space-y-4">
           {recentActivities.map(a => (
@@ -242,7 +238,7 @@ export const Dashboard: React.FC = () => {
             </div>
           ))}
         </div>
-      </section>
+      </Card>
     </div>
   );
 };
@@ -251,7 +247,7 @@ function MetricCard({ title, value, subtitle, icon, iconBg, valueClass, classNam
   title: string; value: string; subtitle: string; icon: React.ReactNode; iconBg: string; valueClass: string; className?: string;
 }) {
   return (
-    <div className={`bg-white p-3 md:p-6 rounded-xl md:rounded-3xl border border-neutral-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow ${className}`}>
+    <Card padding="sm" hoverable className={className}>
       <div className="flex items-center justify-between mb-1 md:mb-3">
         <span className="text-[10px] md:text-sm font-bold text-neutral-400 uppercase tracking-wider truncate">{title}</span>
         <div className={`p-1.5 md:p-2.5 rounded-lg md:rounded-xl ${iconBg}`}>{icon}</div>
@@ -260,15 +256,15 @@ function MetricCard({ title, value, subtitle, icon, iconBg, valueClass, classNam
         <span className={`text-lg md:text-4xl font-black block tracking-tight ${valueClass}`}>{value}</span>
         <span className="text-[9px] md:text-xs text-neutral-400 mt-0.5 md:mt-1 block font-semibold truncate">{subtitle}</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function MiniStat({ label, value, valueClass = 'text-black' }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="bg-neutral-50/50 p-3 md:p-6 rounded-xl md:rounded-2xl border border-neutral-100">
+    <Card padding="sm" className="bg-neutral-50/50 border-neutral-100">
       <span className="text-[10px] md:text-xs font-bold text-neutral-400 uppercase tracking-wider block">{label}</span>
       <span className={`text-lg md:text-4xl font-black block mt-1 md:mt-4 ${valueClass}`}>{value}</span>
-    </div>
+    </Card>
   );
 }

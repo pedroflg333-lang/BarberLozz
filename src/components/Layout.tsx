@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useBusinessStore } from '../stores/businessStore';
 import { useAppointmentStore } from '../stores/appointmentStore';
+import { Button, Badge } from '../ui';
 import {
   LayoutDashboard,
   Calendar as CalendarIcon,
@@ -89,23 +90,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#F5F5F7]">
+    <div className="min-h-screen flex flex-col md:flex-row bg-surface-muted">
       {/* ─── DESKTOP SIDEBAR ─── */}
-      <aside className="hidden md:flex flex-col w-72 bg-[#111111] text-white p-6 border-r border-neutral-800">
-        <div className="flex items-center gap-4 mb-10 pb-6 border-b border-neutral-800">
+      <aside className="hidden md:flex flex-col w-72 bg-surface-dark text-text-inverse p-6 border-r border-border-dark">
+        <div className="flex items-center gap-4 mb-10 pb-6 border-b border-border-dark">
           {business?.logo_url ? (
-            <img
-              src={business.logo_url}
-              alt={businessName}
-              className="w-12 h-12 rounded-xl object-cover border-2 border-gold"
-            />
+            <img src={business.logo_url} alt={businessName} className="w-12 h-12 rounded-xl object-cover border-2 border-gold" />
           ) : (
             <div className="w-12 h-12 rounded-xl bg-gold text-black flex items-center justify-center font-bold text-xl">
               {businessName.slice(0, 2).toUpperCase()}
             </div>
           )}
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white m-0 line-clamp-1">{businessName}</h1>
+            <h1 className="text-xl font-bold tracking-tight text-text-inverse m-0 line-clamp-1">{businessName}</h1>
             <p className="text-xs text-neutral-400 m-0">SaaS Premium</p>
           </div>
         </div>
@@ -116,9 +113,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             const isActive = location.pathname === item.path;
             const badgeCount = item.path === '/booking-requests' ? pendingRequests.length : 0;
             return (
-              <Link
-                key={item.path}
-                to={item.path}
+              <Link key={item.path} to={item.path}
                 className={`flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-medium transition-all ${
                   item.highlight
                     ? 'bg-gold text-black hover:bg-opacity-90 font-bold'
@@ -129,32 +124,25 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 <Icon className={`w-6 h-6 ${item.highlight ? 'text-black' : isActive ? 'text-gold' : ''}`} />
                 <span className="flex-1">{item.label}</span>
-                {badgeCount > 0 && (
-                  <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                    {badgeCount}
-                  </span>
-                )}
+                {badgeCount > 0 && <Badge variant="warning" size="sm">{badgeCount}</Badge>}
               </Link>
             );
           })}
         </nav>
 
-        <div className="pt-6 border-t border-neutral-800">
+        <div className="pt-6 border-t border-border-dark">
           <div className="flex items-center gap-3 mb-4 px-2">
             <div className="w-10 h-10 rounded-full bg-neutral-700 flex items-center justify-center text-white font-bold">
               {profile?.full_name?.slice(0, 1).toUpperCase() || 'P'}
             </div>
             <div className="truncate">
-              <p className="text-sm font-semibold text-white m-0 truncate">{profile?.full_name || 'Peluquero'}</p>
+              <p className="text-sm font-semibold text-text-inverse m-0 truncate">{profile?.full_name || 'Peluquero'}</p>
               <p className="text-xs text-neutral-400 m-0 capitalize">{profile?.role === 'admin' ? 'Dueño' : 'Equipo'}</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-4 w-full px-4 py-3 rounded-xl text-neutral-400 hover:text-red-400 hover:bg-red-950/20 text-base font-medium transition-all"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Cerrar Sesión</span>
+          <button onClick={handleLogout}
+            className="flex items-center gap-4 w-full px-4 py-3 rounded-xl text-neutral-400 hover:text-red-400 hover:bg-red-950/20 text-base font-medium transition-all cursor-pointer">
+            <LogOut className="w-5 h-5" /><span>Cerrar Sesión</span>
           </button>
         </div>
       </aside>
@@ -162,7 +150,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* ─── MAIN PANEL ─── */}
       <div className="flex-1 flex flex-col min-w-0" style={{ paddingBottom: 'max(72px, env(safe-area-inset-bottom, 72px))' }}>
         {/* Mobile Header */}
-        <header className="md:hidden bg-white border-b border-neutral-200 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+        <header className="md:hidden bg-surface border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {business?.logo_url ? (
               <img src={business.logo_url} alt="" className="w-8 h-8 rounded-lg object-cover border border-gold shrink-0" />
@@ -172,51 +160,31 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             )}
             <div className="min-w-0">
-              <p className="text-xs text-neutral-400 m-0 font-medium leading-tight">{businessName}</p>
-              <h1 className="text-sm font-bold text-black m-0 leading-tight truncate">{sectionName}</h1>
+              <p className="text-xs text-text-tertiary m-0 font-medium leading-tight">{businessName}</p>
+              <h1 className="text-sm font-bold text-text-primary m-0 leading-tight truncate">{sectionName}</h1>
             </div>
           </div>
-
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate('/new-appointment')}
-              className="bg-gold hover:bg-gold-dark text-black p-2 rounded-lg transition-colors"
-              aria-label="Nueva cita"
-            >
-              <PlusCircle className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => navigate('/settings')}
-              className="p-2 hover:bg-neutral-100 rounded-lg transition-colors"
-              aria-label="Perfil"
-            >
-              <UserCircle className="w-5 h-5 text-neutral-600" />
-            </button>
+            <Button variant="secondary" size="sm" icon={<PlusCircle className="w-5 h-5" />} onClick={() => navigate('/new-appointment')} />
+            <Button variant="ghost" size="sm" icon={<UserCircle className="w-5 h-5 text-text-secondary" />} onClick={() => navigate('/settings')} />
           </div>
         </header>
 
         {/* Desktop Header */}
-        <header className="hidden md:flex bg-white border-b border-neutral-200 px-6 py-4 md:py-5 items-center justify-between sticky top-0 z-40">
+        <header className="hidden md:flex bg-surface border-b border-border px-6 py-4 md:py-5 items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-2">
-            <span className="text-neutral-500 font-medium">Panel de Gestión</span>
-            <span className="text-neutral-300">/</span>
-            <span className="text-black font-semibold">
-              {sectionName}
-            </span>
+            <span className="text-text-secondary font-medium">Panel de Gestión</span>
+            <span className="text-text-tertiary">/</span>
+            <span className="text-text-primary font-semibold">{sectionName}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <Badge variant="success" size="sm" icon={<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}>
               WhatsApp Activo
-            </span>
+            </Badge>
             {location.pathname !== '/new-appointment' && (
-              <button
-                onClick={() => navigate('/new-appointment')}
-                className="bg-gold hover:bg-gold-dark text-black font-bold px-4 py-2.5 rounded-lg text-sm flex items-center gap-2 shadow-sm transition-all border border-gold"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>Nueva Cita</span>
-              </button>
+              <Button variant="secondary" icon={<PlusCircle className="w-4 h-4" />} onClick={() => navigate('/new-appointment')}>
+                Nueva Cita
+              </Button>
             )}
           </div>
         </header>
@@ -228,20 +196,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* ─── MOBILE BOTTOM NAV ─── */}
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-50 flex items-center justify-around shadow-[0_-4px_12px_rgba(0,0,0,0.08)]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-50 flex items-center justify-around shadow-[0_-4px_12px_rgba(0,0,0,0.08)]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {MAIN_NAV.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
           const badgeCount = item.path === '/booking-requests' ? pendingRequests.length : 0;
           return (
-            <Link
-              key={item.path}
-              to={item.path}
+            <Link key={item.path} to={item.path}
               className={`flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 flex-1 transition-all relative ${
-                isActive ? 'text-black' : 'text-neutral-400'
+                isActive ? 'text-text-primary' : 'text-text-tertiary'
               }`}
             >
               <div className={`p-1 rounded-lg ${isActive ? 'bg-gold/10' : ''} relative`}>
@@ -252,7 +216,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </span>
                 )}
               </div>
-              <span className={`text-[10px] font-semibold leading-tight ${isActive ? 'text-black' : 'text-neutral-400'}`}>
+              <span className={`text-[10px] font-semibold leading-tight ${isActive ? 'text-text-primary' : 'text-text-tertiary'}`}>
                 {item.label}
               </span>
               {isActive && <div className="w-5 h-0.5 bg-gold rounded-full mt-0.5" />}
@@ -260,14 +224,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           );
         })}
 
-        {/* Más button */}
-        <button
-          onClick={() => setMoreOpen(true)}
-          className="flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 flex-1 text-neutral-400 transition-all"
-        >
-          <div className="p-1 rounded-lg">
-            <MoreHorizontal className="w-5 h-5" />
-          </div>
+        <button onClick={() => setMoreOpen(true)}
+          className="flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 flex-1 text-text-tertiary transition-all cursor-pointer">
+          <div className="p-1 rounded-lg"><MoreHorizontal className="w-5 h-5" /></div>
           <span className="text-[10px] font-semibold leading-tight">Más</span>
         </button>
       </nav>
@@ -275,61 +234,41 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* ─── MÁS BOTTOM SHEET ─── */}
       {moreOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-black/50" onClick={() => setMoreOpen(false)} />
-          {/* Sheet */}
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl animate-slide-up overflow-hidden"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-          >
-            {/* Handle */}
+          <div className="absolute bottom-0 left-0 right-0 bg-surface rounded-t-3xl shadow-2xl animate-slide-up overflow-hidden"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
             <div className="flex justify-center pt-3 pb-2">
               <div className="w-10 h-1 rounded-full bg-neutral-300" />
             </div>
 
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pb-3 border-b border-neutral-100">
-              <h2 className="text-lg font-bold text-black m-0">Más opciones</h2>
-              <button onClick={() => setMoreOpen(false)} className="p-1 hover:bg-neutral-100 rounded-lg transition-colors">
-                <X className="w-5 h-5 text-neutral-500" />
-              </button>
+            <div className="flex items-center justify-between px-6 pb-3 border-b border-border">
+              <h2 className="text-lg font-bold text-text-primary m-0">Más opciones</h2>
+              <Button variant="ghost" size="sm" icon={<X className="w-5 h-5" />} onClick={() => setMoreOpen(false)} />
             </div>
 
-            {/* Items */}
             <div className="p-4 space-y-1 max-h-[60vh] overflow-y-auto">
               {MORE_NAV.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 const badgeCount = item.path === '/booking-requests' ? pendingRequests.length : 0;
                 return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setMoreOpen(false)}
+                  <Link key={item.path} to={item.path} onClick={() => setMoreOpen(false)}
                     className={`flex items-center gap-4 px-4 py-3.5 rounded-xl text-base font-semibold transition-all ${
-                      isActive ? 'bg-gold/10 text-gold-dark' : 'text-neutral-700 hover:bg-neutral-50'
+                      isActive ? 'bg-gold/10 text-gold-dark' : 'text-text-secondary hover:bg-neutral-50'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-gold' : 'text-neutral-400'}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-gold' : 'text-text-tertiary'}`} />
                     <span className="flex-1">{item.label}</span>
-                    {badgeCount > 0 && (
-                      <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                        {badgeCount}
-                      </span>
-                    )}
+                    {badgeCount > 0 && <Badge variant="warning" size="sm">{badgeCount}</Badge>}
                   </Link>
                 );
               })}
             </div>
 
-            {/* Logout */}
-            <div className="border-t border-neutral-100 p-4">
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-4 w-full px-4 py-3.5 rounded-xl text-base font-semibold text-red-600 hover:bg-red-50 transition-all"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Cerrar Sesión</span>
+            <div className="border-t border-border p-4">
+              <button onClick={handleLogout}
+                className="flex items-center gap-4 w-full px-4 py-3.5 rounded-xl text-base font-semibold text-red-600 hover:bg-red-50 transition-all cursor-pointer">
+                <LogOut className="w-5 h-5" /><span>Cerrar Sesión</span>
               </button>
             </div>
           </div>

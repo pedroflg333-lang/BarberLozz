@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  /* Brand palette */
   --color-gold: #D4AF37;
   --color-gold-light: #F3E5AB;
   --color-gold-dark: #AA7C11;
@@ -8,8 +9,61 @@
   --color-obsidian-light: #1A1A1A;
   --color-platinum: #F5F5F7;
   --color-charcoal: #2C2C2E;
-  
+
+  /* Surface colors */
+  --color-surface: #ffffff;
+  --color-surface-muted: #F5F5F7;
+  --color-surface-hover: #EDEDF0;
+  --color-surface-dark: #111111;
+  --color-surface-dark-muted: #1A1A1A;
+
+  /* Text colors */
+  --color-text-primary: #000000;
+  --color-text-secondary: #737373;
+  --color-text-tertiary: #A3A3A3;
+  --color-text-inverse: #ffffff;
+
+  /* Border colors */
+  --color-border: #E5E5E5;
+  --color-border-light: #F0F0F0;
+  --color-border-dark: #2C2C2E;
+
+  /* Status colors */
+  --color-success: #059669;
+  --color-success-bg: #ECFDF5;
+  --color-success-border: #A7F3D0;
+  --color-warning: #D97706;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-border: #FDE68A;
+  --color-error: #DC2626;
+  --color-error-bg: #FEF2F2;
+  --color-error-border: #FECACA;
+  --color-info: #2563EB;
+  --color-info-bg: #EFF6FF;
+  --color-info-border: #BFDBFE;
+
+  /* Semantic border-radius */
+  --radius-btn: 0.75rem;
+  --radius-card: 1rem;
+  --radius-modal: 1.5rem;
+
+  /* Semantic shadows */
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-modal: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-menu: 0 8px 32px rgba(0,0,0,0.10);
+
+  /* Custom easing */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Custom durations */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+
+  /* Font families */
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 /* Custom Scrollbars and styling */
@@ -99,4 +153,34 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
+}
+
+/* Standardized focus ring for interactive elements */
+@utility focus-ring {
+  @apply outline-none;
+  &:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+}
+
+/* Standardized transition for interactive elements */
+@utility transition-btn {
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+@utility transition-card {
+  transition: all var(--duration-normal) var(--ease-out-expo);
+}
+
+/* Skeleton shimmer base */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@utility animate-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
 }

@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAppointmentStore } from '../stores/appointmentStore';
 import { useCustomerStore } from '../stores/customerStore';
 import { useChatStore } from '../stores/chatStore';
+import { Button, Badge } from '../ui';
 import {
   Send, Bot, Sparkles, AlertCircle, CheckCircle,
   Database, Terminal, Activity, Wifi, WifiOff,
@@ -119,30 +120,24 @@ export const IaLab: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100dvh-140px)] md:h-[calc(100vh-100px)] flex flex-col lg:flex-row bg-white border border-neutral-200 rounded-2xl md:rounded-3xl overflow-hidden shadow-sm animate-fade-in">
+    <div className="h-[calc(100dvh-140px)] md:h-[calc(100vh-100px)] flex flex-col lg:flex-row bg-surface border border-border rounded-2xl md:rounded-3xl overflow-hidden shadow-sm animate-fade-in">
 
-      <section className="flex-1 flex flex-col min-w-0 bg-[#F5F5F7]">
+      <section className="flex-1 flex flex-col min-w-0 bg-platinum">
 
-        <header className="bg-white border-b border-neutral-200 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-2 shrink-0">
+        <header className="bg-surface border-b border-border px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <div className="p-2 md:p-3 bg-emerald-600 text-white rounded-xl md:rounded-2xl shrink-0">
               <Sparkles className="w-4 h-5 md:w-6 md:h-6 animate-pulse" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm md:text-xl font-black text-black m-0 truncate">WhatsApp Lab</h2>
-              <p className="text-[10px] md:text-xs text-neutral-400 m-0 mt-0.5 font-semibold truncate">Simulador de recepcionista IA</p>
+              <h2 className="text-sm md:text-xl font-black text-text-primary m-0 truncate">WhatsApp Lab</h2>
+              <p className="text-[10px] md:text-xs text-text-secondary m-0 mt-0.5 font-semibold truncate">Simulador de recepcionista IA</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <div className={`flex items-center gap-1 px-2.5 md:px-3.5 py-1.5 md:py-2 border rounded-lg md:rounded-xl text-[10px] md:text-xs font-bold ${
-              ollamaConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
-            }`}>
-              {ollamaConnected ? (
-                <><Wifi className="w-3 h-4 text-emerald-500 animate-pulse shrink-0" /><span className="hidden md:inline">Ollama ({ollamaModel})</span></>
-              ) : (
-                <><WifiOff className="w-3 h-4 text-red-500 shrink-0" /><span>Off</span></>
-              )}
-            </div>
+            <Badge variant={ollamaConnected ? 'success' : 'error'} size="sm" icon={ollamaConnected ? <Wifi className="w-3 h-4 animate-pulse" /> : <WifiOff className="w-3 h-4" />}>
+              {ollamaConnected ? `Ollama (${ollamaModel})` : 'Off'}
+            </Badge>
             <button onClick={() => setShowConsole(!showConsole)} className="p-1.5 md:p-2 hover:bg-neutral-100 rounded-lg cursor-pointer hidden lg:block">
               {showConsole ? <ChevronDown className="w-4 h-5" /> : <ChevronUp className="w-4 h-5" />}
             </button>
@@ -163,16 +158,15 @@ export const IaLab: React.FC = () => {
             <input type="text" value={simulatedName} onChange={e => setSimulatedName(e.target.value)} placeholder="Nombre"
               className="w-full pl-8 pr-2 py-1.5 rounded-lg bg-neutral-800 border border-neutral-700 text-white text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </div>
-          <button onClick={handleClearChat}
-            className="px-2.5 py-1.5 bg-red-950/40 hover:bg-red-900/40 text-red-400 font-extrabold rounded-lg text-[10px] md:text-xs cursor-pointer border border-red-900/50 whitespace-nowrap shrink-0">
+          <Button variant="ghost" size="sm" onClick={handleClearChat} className="text-red-400 hover:bg-red-900/40 hover:text-red-400 border border-red-900/50 bg-red-950/40">
             Vaciar
-          </button>
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 md:space-y-4 bg-[#EDE6D9]/40" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/143831828-56ccf6e1-fd54-4aa9-a9a3-5e917d5e46be.png")', backgroundSize: 'contain' }}>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-3 md:p-4 rounded-xl md:rounded-2xl flex items-start gap-2 md:gap-3 text-sm">
+            <div className="bg-error-bg border border-error-border text-error p-3 md:p-4 rounded-xl md:rounded-2xl flex items-start gap-2 md:gap-3 text-sm">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block text-xs md:text-sm">Error</span>
@@ -186,13 +180,13 @@ export const IaLab: React.FC = () => {
             return (
               <div key={index} className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[90%] md:max-w-[70%] rounded-2xl px-3 md:px-4 py-2.5 md:py-3 shadow-sm flex flex-col gap-1 relative ${
-                  isUser ? 'bg-[#E1F3D4] text-black rounded-tr-none' : 'bg-white text-black rounded-tl-none'
+                  isUser ? 'bg-[#E1F3D4] text-text-primary rounded-tr-none' : 'bg-surface text-text-primary rounded-tl-none'
                 }`}>
-                  <span className="block text-[8px] md:text-[9px] font-bold uppercase tracking-wider text-neutral-400">
+                  <span className="block text-[8px] md:text-[9px] font-bold uppercase tracking-wider text-text-tertiary">
                     {isUser ? simulatedName : 'RECEPCIONISTA IA'}
                   </span>
                   <p className="text-sm md:text-[15px] m-0 leading-normal font-semibold whitespace-pre-wrap">{msg.content}</p>
-                  <div className="flex items-center justify-end gap-1 text-[8px] md:text-[9px] text-neutral-400 self-end mt-0.5">
+                  <div className="flex items-center justify-end gap-1 text-[8px] md:text-[9px] text-text-tertiary self-end mt-0.5">
                     <CheckCheck className="w-3 h-4 text-[#53bdeb] shrink-0" />
                   </div>
                 </div>
@@ -202,7 +196,7 @@ export const IaLab: React.FC = () => {
 
           {loading && (
             <div className="flex w-full justify-start animate-pulse">
-              <div className="bg-white text-neutral-500 rounded-2xl rounded-tl-none px-3 md:px-4 py-3 shadow-sm text-xs md:text-sm font-bold flex items-center gap-2">
+              <div className="bg-surface text-text-secondary rounded-2xl rounded-tl-none px-3 md:px-4 py-3 shadow-sm text-xs md:text-sm font-bold flex items-center gap-2">
                 <Bot className="w-4 h-5 text-emerald-600 animate-spin" />Respondiendo...
               </div>
             </div>
@@ -211,20 +205,16 @@ export const IaLab: React.FC = () => {
           <div ref={chatEndRef} />
         </div>
 
-        <footer className="bg-white p-3 md:p-4 border-t border-neutral-200 shrink-0">
+        <footer className="bg-surface p-3 md:p-4 border-t border-border shrink-0">
           <form onSubmit={handleSend} className="flex gap-2">
             <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} disabled={loading}
               placeholder={`Mensaje desde +${simulatedPhone}...`}
-              className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-neutral-100 border-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm text-black font-semibold disabled:opacity-50" />
-            <button type="submit" disabled={loading || !inputText.trim()}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50 shrink-0">
-              <Send className="w-5 h-5" />
-            </button>
+              className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-neutral-100 border-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm text-text-primary font-semibold disabled:opacity-50" />
+            <Button type="submit" variant="primary" disabled={loading || !inputText.trim()} className="bg-emerald-600 hover:bg-emerald-700 p-3" icon={<Send className="w-5 h-5" />} />
           </form>
         </footer>
       </section>
 
-      {/* Developer Console */}
       <section className={`w-full lg:w-[400px] shrink-0 bg-[#121212] text-[#e0e0e0] font-mono flex flex-col border-t lg:border-t-0 lg:border-l border-neutral-800 ${showConsole ? 'max-h-[50vh] lg:max-h-none' : 'hidden'} lg:flex`}>
 
         <header className="p-3 md:p-4 border-b border-neutral-800 bg-[#1a1a1a] flex items-center justify-between shrink-0">

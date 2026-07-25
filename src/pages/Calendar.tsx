@@ -4,6 +4,7 @@ import { useAppointmentStore } from '../stores/appointmentStore';
 import { useCustomerStore } from '../stores/customerStore';
 import { useServiceStore } from '../stores/serviceStore';
 import { useChatStore } from '../stores/chatStore';
+import { Card, Badge, Button, Modal } from '../ui';
 import {
   ChevronLeft, ChevronRight, Calendar as CalendarIcon,
   Check, X, Clock, Scissors, User, Phone, DollarSign, Bot, PlusCircle
@@ -72,17 +73,17 @@ export const Calendar: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'completed': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Realizada</span>;
-      case 'cancelled': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />Cancelada</span>;
-      default: return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold animate-pulse"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Pendiente</span>;
+      case 'completed': return <Badge variant="success" dot>Realizada</Badge>;
+      case 'cancelled': return <Badge variant="error" dot>Cancelada</Badge>;
+      default: return <Badge variant="warning" dot pulse>Pendiente</Badge>;
     }
   };
 
   const getOriginBadge = (origin: string) => {
     switch (origin) {
-      case 'IA': case 'WHATSAPP': return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 text-[9px] font-black border border-emerald-200"><Bot className="w-2.5 h-2.5" />IA</span>;
-      case 'WEB': return <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-blue-50 text-blue-700 text-[9px] font-black border border-blue-200">WEB</span>;
-      default: return <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-neutral-900 text-white text-[9px] font-black border border-neutral-800">MANUAL</span>;
+      case 'IA': case 'WHATSAPP': return <Badge variant="success" size="sm"><Bot className="w-2.5 h-2.5" />IA</Badge>;
+      case 'WEB': return <Badge variant="info" size="sm">WEB</Badge>;
+      default: return <Badge variant="neutral" size="sm">MANUAL</Badge>;
     }
   };
 
@@ -101,7 +102,7 @@ export const Calendar: React.FC = () => {
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Horizontal day selector */}
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-3">
+      <Card padding="sm">
         <div ref={dayScrollRef} className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
           {dayRow.map(date => {
             const isSelected = date.toDateString() === selectedDate.toDateString();
@@ -124,7 +125,7 @@ export const Calendar: React.FC = () => {
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {/* Date label + nav */}
       <div className="flex items-center justify-between">
@@ -137,9 +138,9 @@ export const Calendar: React.FC = () => {
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
-        <button onClick={() => setSelectedDate(new Date())} className="text-xs font-bold text-neutral-500 hover:text-black px-3 py-1.5 bg-neutral-100 rounded-lg cursor-pointer">
+        <Button variant="ghost" size="sm" onClick={() => setSelectedDate(new Date())}>
           Hoy
-        </button>
+        </Button>
       </div>
 
       {/* Appointments */}
@@ -153,11 +154,12 @@ export const Calendar: React.FC = () => {
         ) : (
           <div className="space-y-2 md:grid md:grid-cols-2 md:gap-4">
             {filteredAppointments.map(apt => (
-              <div
+              <Card
                 key={apt.id}
-                onClick={() => handleCardClick(apt)}
-                className="bg-white rounded-2xl border border-neutral-200 p-4 cursor-pointer flex items-start gap-3 border-l-4 hover:shadow-md transition-shadow"
+                hoverable
+                className="cursor-pointer flex items-start gap-3 border-l-4"
                 style={{ borderLeftColor: apt.service?.color || '#D4AF37' }}
+                onClick={() => handleCardClick(apt)}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -176,7 +178,7 @@ export const Calendar: React.FC = () => {
                   {getOriginBadge(apt.origen)}
                   <span className="text-base font-black text-black mt-1">{apt.price_charged}€</span>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -192,68 +194,58 @@ export const Calendar: React.FC = () => {
       </button>
 
       {/* Modal / Bottom sheet */}
-      {showModal && selectedApt && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center animate-fade-in">
-          <div className="bg-white w-full md:max-w-2xl md:rounded-3xl md:m-4 rounded-t-3xl max-h-[85vh] overflow-y-auto shadow-2xl animate-slide-up" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-            {/* Header */}
-            <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-4 md:p-6 border-b border-neutral-100 rounded-t-3xl">
-              <h2 className="text-lg md:text-2xl font-black text-black m-0">Detalles</h2>
-              <button onClick={() => setShowAptModal(false)} className="p-2 hover:bg-neutral-100 rounded-xl cursor-pointer"><X className="w-5 h-5" /></button>
+      <Modal open={showModal} onClose={() => { setShowAptModal(false); setSelectedApt(null); }} maxWidth="max-w-2xl">
+        <div className="space-y-4 md:space-y-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gold/10 text-gold-dark flex items-center justify-center font-black"><User className="w-4 h-4 md:w-5 md:h-5" /></div>
+              <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">Cliente</span><span className="text-sm md:text-base font-extrabold text-black block truncate">{selectedApt?.customer?.nombre || 'Cliente General'}</span></div>
             </div>
-
-            <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gold/10 text-gold-dark flex items-center justify-center font-black"><User className="w-4 h-4 md:w-5 md:h-5" /></div>
-                  <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">Cliente</span><span className="text-sm md:text-base font-extrabold text-black block truncate">{selectedApt.customer?.nombre || 'Cliente General'}</span></div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center font-black"><Phone className="w-4 h-4 md:w-5 md:h-5" /></div>
-                  <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">WhatsApp</span><span className="text-sm md:text-base font-extrabold text-black block">+{selectedApt.customer?.telefono}</span></div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center font-black"><Scissors className="w-4 h-4 md:w-5 md:h-5" /></div>
-                  <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">Servicio</span><span className="text-sm md:text-base font-extrabold text-black block truncate">{selectedApt.service?.nombre} ({selectedApt.service?.duracion} min)</span></div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center font-black"><DollarSign className="w-4 h-4 md:w-5 md:h-5" /></div>
-                  <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">Importe</span><span className="text-sm md:text-base font-extrabold text-black block">{selectedApt.price_charged}€</span></div>
-                </div>
-              </div>
-
-              {/* Chat history */}
-              <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-                <div className="bg-neutral-900 text-white p-2.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider"><Bot className="w-4 h-4 text-gold" />Chat IA</div>
-                <div className="h-40 overflow-y-auto p-3 space-y-1.5 bg-neutral-50/50 text-xs">
-                  {activeChatMessages.length === 0 ? (
-                    <p className="text-neutral-400 text-center py-6">Sin mensajes</p>
-                  ) : activeChatMessages.map(msg => (
-                    <div key={msg.id} className={`flex ${msg.direction === 'incoming' ? 'justify-start' : 'justify-end'}`}>
-                      <div className={`max-w-[80%] rounded-xl p-2 ${msg.direction === 'incoming' ? 'bg-white text-black' : 'bg-[#E1F3D4] text-black'}`}>
-                        <p className="m-0 font-semibold whitespace-pre-wrap">{msg.content}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center font-black"><Phone className="w-4 h-4 md:w-5 md:h-5" /></div>
+              <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">WhatsApp</span><span className="text-sm md:text-base font-extrabold text-black block">+{selectedApt?.customer?.telefono}</span></div>
             </div>
-
-            {/* Actions */}
-            <div className="sticky bottom-0 bg-white border-t border-neutral-100 p-4 flex gap-3">
-              {selectedApt.estado !== 'completed' && (
-                <button onClick={() => handleStatusChange('completed')} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer">
-                  <Check className="w-5 h-5" /> Realizada
-                </button>
-              )}
-              {selectedApt.estado !== 'cancelled' && (
-                <button onClick={() => handleStatusChange('cancelled')} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-black py-3 rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer">
-                  <X className="w-5 h-5" /> Cancelar
-                </button>
-              )}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center font-black"><Scissors className="w-4 h-4 md:w-5 md:h-5" /></div>
+              <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">Servicio</span><span className="text-sm md:text-base font-extrabold text-black block truncate">{selectedApt?.service?.nombre} ({selectedApt?.service?.duracion} min)</span></div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-neutral-100 text-neutral-700 flex items-center justify-center font-black"><DollarSign className="w-4 h-4 md:w-5 md:h-5" /></div>
+              <div className="min-w-0"><span className="text-[10px] md:text-xs text-neutral-400 block font-bold">Importe</span><span className="text-sm md:text-base font-extrabold text-black block">{selectedApt?.price_charged}€</span></div>
             </div>
           </div>
+
+          {/* Chat history */}
+          <div className="border border-border rounded-card overflow-hidden">
+            <div className="bg-surface-dark text-text-inverse p-2.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider"><Bot className="w-4 h-4 text-gold" />Chat IA</div>
+            <div className="h-40 overflow-y-auto p-3 space-y-1.5 bg-surface-muted text-xs">
+              {activeChatMessages.length === 0 ? (
+                <p className="text-text-tertiary text-center py-6">Sin mensajes</p>
+              ) : activeChatMessages.map(msg => (
+                <div key={msg.id} className={`flex ${msg.direction === 'incoming' ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`max-w-[80%] rounded-xl p-2 ${msg.direction === 'incoming' ? 'bg-white text-text-primary' : 'bg-[#E1F3D4] text-text-primary'}`}>
+                    <p className="m-0 font-semibold whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            {selectedApt?.estado !== 'completed' && (
+              <Button variant="primary" size="md" icon={<Check className="w-4 h-5" />} onClick={() => handleStatusChange('completed')} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                Realizada
+              </Button>
+            )}
+            {selectedApt?.estado !== 'cancelled' && (
+              <Button variant="outline" size="md" icon={<X className="w-4 h-5" />} onClick={() => handleStatusChange('cancelled')} className="flex-1 text-red-700 border-red-200 hover:bg-red-50">
+                Cancelar
+              </Button>
+            )}
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };
