@@ -1,40 +1,52 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BACKEND_URL } from '../config/backend';
 import {
-  Scissors, ChevronLeft, Check, Clock,
-  ArrowRight, Calendar, User, Phone, FileText, Sparkles
+  Scissors, ChevronLeft, Clock,
+  ArrowRight, User, Phone, FileText, Sparkles
 } from 'lucide-react';
+import { WelcomeScreen } from './public/WelcomeScreen';
+import { ProgressBar } from './public/ProgressBar';
+import { ServiceCard } from './public/ServiceCard';
+import { DateTimePicker } from './public/DateTimePicker';
+import { ThankYouScreen } from './public/ThankYouScreen';
 
-type Step = 'service' | 'employee' | 'datetime' | 'info' | 'done';
+type Step = 'welcome' | 'service' | 'employee' | 'datetime' | 'info' | 'done';
 
 interface Service { id: string; nombre: string; precio: number; duracion: number; color: string; descripcion: string | null; }
 interface Employee { id: string; full_name: string; }
 interface TimeSlot { start: string; end: string; employee_id: string; employee_name: string; }
 
-const PageContainer = ({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) => (
-  <div className="max-w-lg mx-auto space-y-4 animate-fade-in">
-    {onBack && (
-      <button onClick={onBack} className="flex items-center gap-1.5 text-neutral-500 hover:text-black font-semibold text-sm cursor-pointer">
-        <ChevronLeft className="w-4 h-5" />Atrás
-      </button>
-    )}
-    <div>{children}</div>
-  </div>
-);
+const formatDate = (dateStr: string) => {
+  const d = new Date(dateStr + 'T12:00:00');
+  return {
+    dayName: d.toLocaleDateString('es-ES', { weekday: 'short' }),
+    dayNum: d.getDate(),
+    month: d.toLocaleDateString('es-ES', { month: 'short' }),
+    full: d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+  };
+};
 
-const StepIndicator = ({ current, total }: { current: number; total: number }) => (
-  <div className="flex items-center justify-center gap-1.5 mb-6">
-    {Array.from({ length: total }).map((_, i) => (
-      <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i <= current ? 'bg-black w-6' : 'bg-neutral-200 w-6'}`} />
-    ))}
-  </div>
-);
+const stepToIndex: Record<Step, number> = {
+  welcome: -1,
+  service: 0,
+  employee: 1,
+  datetime: 2,
+  info: 3,
+  done: 4,
+};
+
+const pageVariants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const } },
+  exit: { opacity: 0, y: -12, transition: { duration: 0.2 } },
+};
 
 export const PublicBooking: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
 
-  const [step, setStep] = useState<Step>('service');
+  const [step, setStep] = useState<Step>('welcome');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,7 +92,7 @@ export const PublicBooking: React.FC = () => {
   }, [slug]);
 
   const resetFlow = () => {
-    setStep('service');
+    setStep('welcome');
     setSelectedService(null);
     setSelectedEmployee(null);
     setSelectedDate('');
@@ -187,36 +199,17 @@ export const PublicBooking: React.FC = () => {
     setSubmitting(false);
   };
 
-  const today = new Date().toISOString().split('T')[0];
-
-  const weekDates = useMemo(() => {
-    const dates: string[] = [];
-    for (let i = 0; i < 30; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
-    return dates;
-  }, []);
-
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr + 'T12:00:00');
-    return {
-      dayName: d.toLocaleDateString('es-ES', { weekday: 'short' }),
-      dayNum: d.getDate(),
-      month: d.toLocaleDateString('es-ES', { month: 'short' }),
-      full: d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
-    };
-  };
+  const wizardStep = stepToIndex[step];
+  const progressCurrent = wizardStep >= 0 && wizardStep <= 3 ? wizardStep : 0;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-neutral-900 border-2 border-gold flex items-center justify-center animate-spin mx-auto">
-            <Scissors className="w-6 h-6 text-gold" />
+          <div className="w-12 h-12 rounded-2xl bg-neutral-900 border-2 border-[#D4AF37] flex items-center justify-center animate-spin mx-auto">
+            <Scissors className="w-6 h-6 text-[#D4AF37]" />
           </div>
-          <p className="text-neutral-500 font-semibold">Cargando...</p>
+          <p className="text-neutral-400 font-semibold">Cargando...</p>
         </div>
       </div>
     );
@@ -236,264 +229,342 @@ export const PublicBooking: React.FC = () => {
     );
   }
 
+  // Welcome screen (separate from wizard)
+  if (step === 'welcome') {
+    return <WelcomeScreen business={business} onStart={() => setStep('service')} />;
+  }
+
+  // Done screen (separate)
   if (step === 'done') {
     return (
-      <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-8 border border-neutral-200 text-center max-w-md shadow-sm animate-slide-up">
-          <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mx-auto animate-bounce-in">
-            <Check className="w-10 h-10 text-emerald-600 stroke-[3]" />
-          </div>
-          <h1 className="text-2xl font-black text-black mt-6 m-0">Solicitud enviada</h1>
-          <p className="text-neutral-500 m-0 mt-3 text-sm leading-relaxed">
-            {customerName}, hemos recibido tu solicitud para{' '}
-            <strong>{selectedService?.nombre}</strong> el{' '}
-            <strong>{selectedDate ? formatDate(selectedDate).full : ''}</strong> a las{' '}
-            <strong>{selectedTime}</strong>.
-          </p>
-          <p className="text-neutral-400 m-0 mt-4 text-xs">Te confirmaremos la cita en breve.</p>
-          <button onClick={resetFlow}
-            className="mt-6 bg-black hover:bg-neutral-900 text-white font-black px-8 py-4 rounded-2xl text-base transition-all cursor-pointer shadow-md">
-            Nueva Reserva
-          </button>
-        </div>
-      </div>
+      <ThankYouScreen
+        customerName={customerName}
+        selectedService={selectedService}
+        selectedDate={selectedDate}
+        selectedTime={selectedTime}
+        onReset={resetFlow}
+      />
     );
   }
 
+  const wizardSteps = step === 'service' || step === 'employee' || step === 'datetime' || step === 'info';
+
   return (
     <div className="min-h-screen bg-[#F5F5F7]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      {/* Header */}
-      <header className="bg-white border-b border-neutral-200 px-4 py-4 md:py-6 sticky top-0 z-40">
-        <div className="max-w-lg mx-auto flex items-center gap-3">
-          {business?.logo_url ? (
-            <img src={business.logo_url} alt="" className="w-10 h-10 rounded-xl object-cover border border-gold" />
-          ) : (
-            <div className="w-10 h-10 rounded-xl bg-neutral-900 text-gold flex items-center justify-center font-bold text-lg">
-              {(business?.nombre || 'B').slice(0, 2).toUpperCase()}
-            </div>
-          )}
-          <div>
-            <h1 className="text-base font-black text-black m-0">{business?.nombre || 'Barbería'}</h1>
-            <p className="text-xs text-neutral-400 m-0 font-medium">Reserva online</p>
+      {/* Minimal header */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-neutral-100 px-4 py-3 sticky top-0 z-40">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {business?.logo_url ? (
+              <img src={business.logo_url} alt="" className="w-8 h-8 rounded-lg object-cover" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-neutral-900 text-[#D4AF37] flex items-center justify-center font-bold text-xs">
+                {(business?.nombre || 'B').slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <span className="text-sm font-bold text-black">{business?.nombre}</span>
           </div>
+          {wizardSteps && (
+            <span className="text-xs font-semibold text-neutral-400">
+              Paso {progressCurrent + 1} de 4
+            </span>
+          )}
         </div>
       </header>
 
-      <main className="p-4 md:p-6">
+      {/* Progress bar */}
+      {wizardSteps && (
+        <div className="bg-white/50 px-4 py-4">
+          <ProgressBar current={progressCurrent} />
+        </div>
+      )}
+
+      {/* Main content */}
+      <main className="px-4 pt-6 pb-32">
         <div className="max-w-lg mx-auto">
-          <StepIndicator current={step === 'service' ? 0 : step === 'employee' ? 1 : step === 'datetime' ? 2 : 3} total={4} />
-
-          {/* STEP 1: Service */}
-          {step === 'service' && (
-            <PageContainer>
-              <h2 className="text-2xl font-black text-black m-0 mb-1">Elige tu servicio</h2>
-              <p className="text-sm text-neutral-400 m-0 mb-5">Selecciona lo que necesitas.</p>
-
-              {services.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 border border-neutral-200 text-center">
-                  <p className="text-neutral-400 font-semibold">No hay servicios disponibles.</p>
+          <AnimatePresence mode="wait">
+            {/* STEP 1: Service */}
+            {step === 'service' && (
+              <motion.div
+                key="service"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <div className="flex items-center gap-2 mb-6">
+                  <span className="w-8 h-8 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-black">1</span>
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-black text-black m-0">Elige tu servicio</h2>
+                    <p className="text-sm text-neutral-400 m-0 mt-0.5">Selecciona lo que necesitas.</p>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {services.map(srv => (
-                    <button key={srv.id} onClick={() => handleSelectService(srv)}
-                      className="w-full text-left bg-white rounded-2xl border border-neutral-200 p-4 md:p-5 hover:border-black transition-all cursor-pointer shadow-sm hover:shadow-md group">
-                      <div className="flex items-center justify-between">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="text-lg md:text-xl font-extrabold text-black m-0 truncate flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: srv.color }} />
-                            {srv.nombre}
-                          </h3>
-                          {srv.descripcion && (
-                            <p className="text-xs text-neutral-400 font-medium m-0 mt-0.5 truncate">{srv.descripcion}</p>
-                          )}
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-sm font-bold text-neutral-500 flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5" />{srv.duracion} min
-                            </span>
-                            <span className="text-lg font-black text-black">{srv.precio}€</span>
-                          </div>
-                        </div>
-                        <ArrowRight className="w-5 h-5 text-neutral-300 group-hover:text-black transition-all shrink-0 ml-2" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </PageContainer>
-          )}
 
-          {/* STEP 2: Employee */}
-          {step === 'employee' && (
-            <PageContainer onBack={() => { setStep('service'); setSelectedService(null); }}>
-              <h2 className="text-2xl font-black text-black m-0 mb-1">Elige profesional</h2>
-              <p className="text-sm text-neutral-400 m-0 mb-5">¿Con quién prefieres?</p>
-
-              <div className="space-y-3">
-                {employees.map(emp => (
-                  <button key={emp.id} onClick={() => handleSelectEmployee(emp)}
-                    className="w-full text-left bg-white rounded-2xl border border-neutral-200 p-4 hover:border-black transition-all cursor-pointer shadow-sm hover:shadow-md group flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center font-bold text-lg text-neutral-700 shrink-0">
-                      {emp.full_name.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-black m-0 truncate">{emp.full_name}</h3>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-neutral-300 group-hover:text-black transition-all shrink-0" />
-                  </button>
-                ))}
-              </div>
-            </PageContainer>
-          )}
-
-          {/* STEP 3: Date & Time */}
-          {step === 'datetime' && (
-            <PageContainer onBack={() => { setStep(employees.length > 1 ? 'employee' : 'service'); }}>
-              <h2 className="text-2xl font-black text-black m-0 mb-1">Elige fecha y hora</h2>
-              <p className="text-sm text-neutral-400 m-0 mb-5">Selecciona un día y una hora disponible.</p>
-
-              {/* Date selector */}
-              <div className="overflow-x-auto no-scrollbar -mx-4 px-4 mb-5">
-                <div className="flex gap-2 min-w-min">
-                  {weekDates.map(date => {
-                    const fmt = formatDate(date);
-                    const isActive = selectedDate === date;
-                    const isToday = date === today;
-                    return (
-                      <button key={date} onClick={() => handleDateChange(date)}
-                        className={`flex flex-col items-center py-3 px-4 rounded-xl border-2 transition-all cursor-pointer shrink-0 min-w-[70px] ${
-                          isActive ? 'bg-black text-white border-black' : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-400'
-                        }`}>
-                        <span className="text-[10px] font-bold uppercase">{fmt.dayName}</span>
-                        <span className="text-lg font-black leading-tight mt-0.5">{fmt.dayNum}</span>
-                        <span className="text-[10px] font-semibold">{fmt.month}</span>
-                        {isToday && <span className="w-1.5 h-1.5 rounded-full bg-gold mt-1" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Time slots */}
-              {selectedDate && (
-                <div>
-                  {loadingSlots ? (
-                    <div className="bg-white rounded-2xl p-8 border border-neutral-200 text-center">
-                      <div className="w-8 h-8 rounded-full bg-neutral-100 animate-spin flex items-center justify-center mx-auto">
-                        <Clock className="w-4 h-4 text-neutral-400" />
-                      </div>
-                      <p className="text-sm text-neutral-400 mt-3 font-semibold">Cargando horarios...</p>
-                    </div>
-                  ) : availableSlots.length === 0 ? (
-                    <div className="bg-white rounded-2xl p-8 border border-neutral-200 text-center">
-                      <p className="text-neutral-400 font-semibold">No hay horas disponibles para este día.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-xs font-bold text-neutral-500 mb-3 uppercase tracking-wider">
-                        Horas disponibles — {availableSlots.length}
-                      </p>
-                      <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-                        {availableSlots.map(slot => (
-                          <button key={slot.start} onClick={() => handleTimeSelect(slot.start)}
-                            className={`py-3 px-2 rounded-xl border-2 font-extrabold text-sm transition-all cursor-pointer ${
-                              selectedTime === slot.start
-                                ? 'bg-black text-white border-black'
-                                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-                            }`}>
-                            {slot.start}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {!selectedDate && (
-                <div className="bg-white rounded-2xl p-8 border border-neutral-200 text-center">
-                  <Calendar className="w-8 h-8 text-neutral-300 mx-auto" />
-                  <p className="text-sm text-neutral-400 mt-3 font-semibold">Selecciona un día para ver horarios.</p>
-                </div>
-              )}
-            </PageContainer>
-          )}
-
-          {/* STEP 4: Customer Info */}
-          {step === 'info' && (
-            <PageContainer onBack={() => { setStep('datetime'); setSelectedTime(''); }}>
-              <h2 className="text-2xl font-black text-black m-0 mb-1">Tus datos</h2>
-              <p className="text-sm text-neutral-400 m-0 mb-5">Para confirmar la reserva.</p>
-
-              {/* Summary */}
-              <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-200 mb-5 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Servicio</span>
-                  <span className="font-bold text-black">{selectedService?.nombre}</span>
-                </div>
-                {selectedEmployee && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-neutral-500">Profesional</span>
-                    <span className="font-bold text-black">{selectedEmployee.full_name}</span>
+                {services.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-8 border border-neutral-100 text-center">
+                    <p className="text-neutral-400 font-semibold">No hay servicios disponibles.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {services.map((srv, i) => (
+                      <motion.div
+                        key={srv.id}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.06, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                      >
+                        <ServiceCard
+                          service={srv}
+                          isSelected={selectedService?.id === srv.id}
+                          onSelect={handleSelectService}
+                        />
+                      </motion.div>
+                    ))}
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Fecha</span>
-                  <span className="font-bold text-black">{selectedDate ? formatDate(selectedDate).full : ''}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-neutral-500">Hora</span>
-                  <span className="font-bold text-black">{selectedTime}</span>
-                </div>
-                <div className="border-t border-neutral-200 pt-2 flex justify-between">
-                  <span className="text-neutral-600 font-bold">Precio</span>
-                  <span className="text-xl font-black text-black">{selectedService?.precio}€</span>
-                </div>
-              </div>
+              </motion.div>
+            )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="flex items-center gap-1.5 text-sm font-bold text-neutral-700 mb-1">
-                    <User className="w-4 h-4 text-neutral-400" />Nombre *
-                  </label>
-                  <input type="text" required placeholder="Tu nombre" value={customerName}
-                    onChange={e => setCustomerName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-black font-semibold" />
-                </div>
-                <div>
-                  <label className="flex items-center gap-1.5 text-sm font-bold text-neutral-700 mb-1">
-                    <Phone className="w-4 h-4 text-neutral-400" />Teléfono *
-                  </label>
-                  <input type="tel" required placeholder="Ej: 600111222" value={customerPhone}
-                    onChange={e => setCustomerPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-black font-semibold" />
-                </div>
-                <div>
-                  <label className="flex items-center gap-1.5 text-sm font-bold text-neutral-700 mb-1">
-                    <FileText className="w-4 h-4 text-neutral-400" />Observaciones
-                  </label>
-                  <textarea placeholder="Algo que debamos saber..." value={notes}
-                    onChange={e => setNotes(e.target.value)} rows={2}
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-black font-semibold" />
-                </div>
-
-                {submitError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-semibold">{submitError}</div>
-                )}
-
-                <button type="submit" disabled={submitting || !customerName || !customerPhone}
-                  className="w-full bg-black hover:bg-neutral-900 text-white font-black py-4 rounded-2xl text-base flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
-                  {submitting ? (
-                    <span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Enviando...</span>
-                  ) : (
-                    <><Sparkles className="w-5 h-5" /> Solicitar Cita</>
-                  )}
+            {/* STEP 2: Employee */}
+            {step === 'employee' && (
+              <motion.div
+                key="employee"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <button
+                  onClick={() => { setStep('service'); setSelectedService(null); }}
+                  className="flex items-center gap-1.5 text-neutral-400 hover:text-black font-semibold text-sm mb-4 transition-all cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-5" />
+                  Atrás
                 </button>
-              </form>
-            </PageContainer>
-          )}
+
+                <div className="flex items-center gap-2 mb-6">
+                  <span className="w-8 h-8 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-black">2</span>
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-black text-black m-0">Elige profesional</h2>
+                    <p className="text-sm text-neutral-400 m-0 mt-0.5">¿Con quién prefieres?</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  {employees.map(emp => (
+                    <motion.button
+                      key={emp.id}
+                      onClick={() => handleSelectEmployee(emp)}
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full text-left bg-white rounded-2xl border border-neutral-100 p-4 hover:border-neutral-300 transition-all cursor-pointer shadow-sm hover:shadow-md flex items-center gap-4 group"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center font-bold text-lg text-neutral-600 shrink-0">
+                        {emp.full_name.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-black m-0 truncate">{emp.full_name}</h3>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-neutral-300 group-hover:text-neutral-600 transition-all shrink-0" />
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 3: Date & Time */}
+            {step === 'datetime' && (
+              <motion.div
+                key="datetime"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <button
+                  onClick={() => { setStep(employees.length > 1 ? 'employee' : 'service'); }}
+                  className="flex items-center gap-1.5 text-neutral-400 hover:text-black font-semibold text-sm mb-4 transition-all cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-5" />
+                  Atrás
+                </button>
+
+                <div className="flex items-center gap-2 mb-6">
+                  <span className="w-8 h-8 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-black">3</span>
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-black text-black m-0">Elige fecha y hora</h2>
+                    <p className="text-sm text-neutral-400 m-0 mt-0.5">Selecciona un día y una hora.</p>
+                  </div>
+                </div>
+
+                <DateTimePicker
+                  selectedDate={selectedDate}
+                  selectedTime={selectedTime}
+                  availableSlots={availableSlots}
+                  loadingSlots={loadingSlots}
+                  onDateChange={handleDateChange}
+                  onTimeSelect={handleTimeSelect}
+                />
+              </motion.div>
+            )}
+
+            {/* STEP 4: Customer Info */}
+            {step === 'info' && (
+              <motion.div
+                key="info"
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <button
+                  onClick={() => { setStep('datetime'); setSelectedTime(''); }}
+                  className="flex items-center gap-1.5 text-neutral-400 hover:text-black font-semibold text-sm mb-4 transition-all cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-5" />
+                  Atrás
+                </button>
+
+                <div className="flex items-center gap-2 mb-6">
+                  <span className="w-8 h-8 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-black">4</span>
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-black text-black m-0">Tus datos</h2>
+                    <p className="text-sm text-neutral-400 m-0 mt-0.5">Para confirmar la reserva.</p>
+                  </div>
+                </div>
+
+                {/* Summary card */}
+                <div className="bg-white rounded-2xl p-5 border border-neutral-100 mb-6 shadow-sm space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-neutral-400">Servicio</span>
+                    <div className="flex items-center gap-2">
+                      {selectedService && (
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: selectedService.color }} />
+                      )}
+                      <span className="text-sm font-bold text-black">{selectedService?.nombre}</span>
+                    </div>
+                  </div>
+                  {selectedEmployee && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-neutral-400">Profesional</span>
+                      <span className="text-sm font-bold text-black">{selectedEmployee.full_name}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-neutral-400">Fecha</span>
+                    <span className="text-sm font-bold text-black">{selectedDate ? formatDate(selectedDate).full : ''}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-neutral-400">Hora</span>
+                    <span className="text-sm font-bold text-black">{selectedTime}</span>
+                  </div>
+                  <div className="border-t border-neutral-100 pt-3 flex justify-between items-center">
+                    <span className="text-sm font-bold text-neutral-600">Total</span>
+                    <span className="text-xl font-black text-black">{selectedService?.precio}€</span>
+                  </div>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wider">
+                      <User className="w-3.5 h-3.5" />Nombre
+                    </label>
+                    <input
+                      type="text" required placeholder="Tu nombre" value={customerName}
+                      onChange={e => setCustomerName(e.target.value)}
+                      className="w-full px-4 py-3.5 rounded-xl bg-white border border-neutral-200 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 font-semibold placeholder:text-neutral-300 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wider">
+                      <Phone className="w-3.5 h-3.5" />Teléfono
+                    </label>
+                    <input
+                      type="tel" required placeholder="Ej: 600 111 222" value={customerPhone}
+                      onChange={e => setCustomerPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                      className="w-full px-4 py-3.5 rounded-xl bg-white border border-neutral-200 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 font-semibold placeholder:text-neutral-300 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-neutral-500 mb-1.5 uppercase tracking-wider">
+                      <FileText className="w-3.5 h-3.5" />Observaciones
+                    </label>
+                    <textarea
+                      placeholder="Algo que debamos saber..." value={notes}
+                      onChange={e => setNotes(e.target.value)} rows={2}
+                      className="w-full px-4 py-3.5 rounded-xl bg-white border border-neutral-200 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 font-semibold placeholder:text-neutral-300 transition-all resize-none"
+                    />
+                  </div>
+
+                  {submitError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl text-sm font-semibold"
+                    >
+                      {submitError}
+                    </motion.div>
+                  )}
+
+                  <motion.button
+                    type="submit"
+                    disabled={submitting || !customerName || !customerPhone}
+                    whileTap={!submitting && customerName && customerPhone ? { scale: 0.98 } : {}}
+                    className="w-full bg-black hover:bg-neutral-900 text-white font-bold text-base py-4 rounded-2xl flex items-center justify-center gap-2.5 cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-black/10"
+                  >
+                    {submitting ? (
+                      <span className="flex items-center gap-2.5">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Enviando...
+                      </span>
+                    ) : (
+                      <><Sparkles className="w-5 h-5" /> Solicitar Cita</>
+                    )}
+                  </motion.button>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </main>
+
+      {/* Floating summary bar (visible after service is selected) */}
+      {wizardSteps && selectedService && (
+        <motion.div
+          initial={{ y: 80 }}
+          animate={{ y: 0 }}
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-neutral-100 px-4 py-3 z-50"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+        >
+          <div className="max-w-lg mx-auto flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                {selectedService && (
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: selectedService.color }} />
+                )}
+                <span className="text-sm font-bold text-black truncate">{selectedService.nombre}</span>
+              </div>
+              <div className="flex items-center gap-3 mt-0.5">
+                <span className="text-xs text-neutral-400">
+                  <Clock className="w-3 h-3 inline mr-0.5" />
+                  {selectedService.duracion} min
+                </span>
+                {selectedEmployee && (
+                  <span className="text-xs text-neutral-400">· {selectedEmployee.full_name}</span>
+                )}
+                {selectedDate && (
+                  <span className="text-xs text-neutral-400">· {formatDate(selectedDate).dayName} {selectedDate.slice(8, 10)}</span>
+                )}
+                {selectedTime && (
+                  <span className="text-xs text-neutral-400">· {selectedTime}</span>
+                )}
+              </div>
+            </div>
+            <span className="text-lg font-black text-black ml-3 shrink-0">{selectedService.precio}€</span>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };
